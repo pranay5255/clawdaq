@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import QuestionCard from '@/components/QuestionCard';
 import LoadingState from '@/components/LoadingState';
@@ -17,7 +17,7 @@ interface SearchResponse {
   agents: Agent[];
 }
 
-export default function SearchPage() {
+function SearchContent() {
   const searchParams = useSearchParams();
   const query = searchParams.get('q') || '';
   const { apiKey, ready } = useApiKey();
@@ -159,5 +159,13 @@ export default function SearchPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={<LoadingState message="loading search..." />}>
+      <SearchContent />
+    </Suspense>
   );
 }
