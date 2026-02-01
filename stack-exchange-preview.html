@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stack Exchange Template</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              orange: "#F48024",
+              "orange-dark": "#DA680B",
+              "orange-light": "#FFF4E6",
+            },
+            surface: {
+              primary: "#FFFFFF",
+              secondary: "#F8F9FA",
+              tertiary: "#E9ECEF",
+            },
+            accent: {
+              blue: "#0074CC",
+              "blue-dark": "#0056A4",
+              "blue-light": "#E6F4FF",
+              green: "#2E7D32",
+              "green-light": "#E8F5E9",
+            },
+            text: {
+              primary: "#232629",
+              secondary: "#6A737C",
+              tertiary: "#848D95",
+            },
+            border: {
+              DEFAULT: "#E3E6E8",
+              dark: "#D6D9DC",
+            },
+          },
+          fontFamily: {
+            sans: ['"Source Sans 3"', "system-ui", "sans-serif"],
+            mono: ['"JetBrains Mono"', "monospace"],
+            display: ['"Outfit"', "system-ui", "sans-serif"],
+          },
+        },
+      },
+    }
+  </script>
+  <style>
+    body { font-family: 'Source Sans 3', system-ui, sans-serif; }
+    .font-display { font-family: 'Outfit', system-ui, sans-serif; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+    
+    .gradient-brand { background: linear-gradient(135deg, #F48024 0%, #DA680B 100%); }
+    
+    .tag:hover { background: #E6F4FF; color: #0074CC; transform: translateY(-1px); }
+    .question-card:hover { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); border-color: #D6D9DC; }
+    .vote-btn:hover { transform: scale(1.1); }
+    .vote-btn:active { transform: scale(0.95); }
+    
+    @keyframes slideUp {
+      0% { opacity: 0; transform: translateY(10px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    .animate-slide-up { animation: slideUp 0.3s ease-out forwards; }
+    
+    pre { background: #1A1D21; color: #E9ECEF; border-radius: 8px; padding: 1rem; overflow-x: auto; font-size: 0.875rem; }
+    code:not(pre code) { background: #E9ECEF; padding: 0.125rem 0.375rem; border-radius: 4px; font-size: 0.875em; color: #C7254E; }
+    
+    .accepted-answer { border-left: 4px solid #2E7D32; background: linear-gradient(90deg, rgba(46, 125, 50, 0.05) 0%, transparent 50%); }
+    
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #F8F9FA; }
+    ::-webkit-scrollbar-thumb { background: #D6D9DC; border-radius: 4px; }
+  </style>
+</head>
+<body class="bg-[#F8F9FA] text-[#232629] min-h-screen">
+  <!-- Header -->
+  <header class="sticky top-0 z-50 bg-white border-b border-[#E3E6E8] shadow-sm">
+    <div class="max-w-7xl mx-auto px-4">
+      <div class="flex items-center justify-between h-14 gap-4">
+        <!-- Logo -->
+        <a href="#" class="flex items-center gap-2 flex-shrink-0">
+          <div class="w-8 h-8 gradient-brand rounded-md flex items-center justify-center">
+            <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18 20H4V11H2V22H20V11H18V20ZM17 7L15.6 5.6L13 8.2V2H11V8.2L8.4 5.6L7 7L12 12L17 7Z" />
+            </svg>
+          </div>
+          <span class="hidden sm:block font-display font-bold text-lg">
+            stack<span class="text-[#F48024]">exchange</span>
+          </span>
+        </a>
+
+        <!-- Search Bar -->
+        <div class="flex-1 max-w-2xl hidden md:block">
+          <div class="relative">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#848D95]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input type="text" placeholder="Search questions..." class="w-full pl-10 pr-4 py-1.5 text-sm border border-[#E3E6E8] rounded-md focus:border-[#0074CC] focus:ring-2 focus:ring-[#0074CC]/20 outline-none transition-all">
+          </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="hidden lg:flex items-center gap-1">
+          <a href="#" class="px-3 py-2 text-sm font-medium text-[#F48024] bg-[#FFF4E6] rounded-md">Questions</a>
+          <a href="#tags" class="px-3 py-2 text-sm font-medium text-[#6A737C] hover:text-[#232629] hover:bg-[#F8F9FA] rounded-md transition-colors">Tags</a>
+          <a href="#users" class="px-3 py-2 text-sm font-medium text-[#6A737C] hover:text-[#232629] hover:bg-[#F8F9FA] rounded-md transition-colors">Users</a>
+        </nav>
+
+        <!-- Auth Buttons -->
+        <div class="flex items-center gap-2">
+          <button class="px-4 py-1.5 text-sm font-medium border border-[#E3E6E8] rounded-md hover:bg-[#F8F9FA] transition-colors hidden sm:block">Log in</button>
+          <button class="px-4 py-1.5 text-sm font-medium bg-[#0074CC] text-white rounded-md hover:bg-[#0056A4] transition-colors">Sign up</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="max-w-7xl mx-auto px-4 py-6">
+    <div class="flex gap-6">
+      <!-- Left Sidebar -->
+      <aside class="w-44 flex-shrink-0 hidden lg:block">
+        <nav class="sticky top-20 space-y-1">
+          <a href="#" class="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md bg-[#FFF4E6] text-[#F48024] border-r-4 border-[#F48024]">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            Home
+          </a>
+          <a href="#" class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-[#6A737C] hover:text-[#232629] hover:bg-[#F8F9FA] rounded-md transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Questions
+          </a>
+          <a href="#tags" class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-[#6A737C] hover:text-[#232629] hover:bg-[#F8F9FA] rounded-md transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+            </svg>
+            Tags
+          </a>
+          <a href="#users" class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-[#6A737C] hover:text-[#232629] hover:bg-[#F8F9FA] rounded-md transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+            Users
+          </a>
+          
+          <div class="pt-4 mt-4 border-t border-[#E3E6E8]">
+            <h3 class="px-3 text-xs font-semibold text-[#848D95] uppercase tracking-wider mb-2">Collectives</h3>
+            <a href="#" class="flex items-center gap-2 px-3 py-2 text-sm text-[#6A737C] hover:text-[#232629] hover:bg-[#F8F9FA] rounded-md transition-colors">
+              <div class="w-4 h-4 rounded bg-[#0074CC]/20 flex items-center justify-center">
+                <svg class="w-2.5 h-2.5 text-[#0074CC]" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z" />
+                </svg>
+              </div>
+              Explore Collectives
+            </a>
+          </div>
+        </nav>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="flex-1 min-w-0">
+        <!-- Header -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <h1 class="font-display text-2xl font-bold">Top Questions</h1>
+          <button class="px-4 py-2 text-sm font-medium bg-[#0074CC] text-white rounded-md hover:bg-[#0056A4] transition-colors inline-flex items-center gap-2">
+            Ask Question
+          </button>
+        </div>
+
+        <!-- Filters -->
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4 pb-4 border-b border-[#E3E6E8]">
+          <p class="text-sm text-[#6A737C]">23,456,789 questions</p>
+          <div class="flex items-center gap-1 bg-white border border-[#E3E6E8] rounded-md p-0.5">
+            <button class="px-3 py-1.5 text-sm rounded bg-[#F48024] text-white">Newest</button>
+            <button class="px-3 py-1.5 text-sm rounded text-[#6A737C] hover:bg-[#F8F9FA]">Active</button>
+            <button class="px-3 py-1.5 text-sm rounded text-[#6A737C] hover:bg-[#F8F9FA]">Bountied</button>
+            <button class="px-3 py-1.5 text-sm rounded text-[#6A737C] hover:bg-[#F8F9FA]">Unanswered</button>
+          </div>
+        </div>
+
+        <!-- Questions List -->
+        <div class="space-y-3">
+          <!-- Question 1 -->
+          <article class="question-card flex gap-4 p-4 bg-white border border-[#E3E6E8] rounded-lg transition-all animate-slide-up" style="animation-delay: 0ms">
+            <div class="flex flex-col items-end gap-1 min-w-[80px] text-sm">
+              <div class="text-center">
+                <span class="font-semibold text-[#F48024]">142</span>
+                <span class="text-xs text-[#6A737C] ml-1">votes</span>
+              </div>
+              <div class="text-center bg-[#2E7D32] text-white rounded px-1.5 py-0.5">
+                <span class="font-semibold">3</span>
+                <span class="text-xs ml-1">answers</span>
+              </div>
+              <div class="text-center text-[#848D95]">
+                <span class="font-semibold">3.4K</span>
+                <span class="text-xs ml-1">views</span>
+              </div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <h3 class="mb-1">
+                <a href="#" class="text-[#0074CC] hover:text-[#0056A4] font-medium text-base leading-snug">
+                  How to properly handle async/await errors in TypeScript?
+                </a>
+              </h3>
+              <p class="text-[#6A737C] text-sm line-clamp-2 mb-2">
+                I'm working on a TypeScript project and I'm having trouble properly handling errors with async/await. The problem is that if the fetch fails, the error isn't being caught properly...
+              </p>
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex flex-wrap gap-1">
+                  <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">typescript</a>
+                  <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">async-await</a>
+                  <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">error-handling</a>
+                  <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">javascript</a>
+                </div>
+                <div class="flex items-center gap-2 text-xs">
+                  <span class="text-[#848D95]">asked 2 hours ago</span>
+                  <a href="#" class="flex items-center gap-1.5">
+                    <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop" class="w-4 h-4 rounded">
+                    <span class="text-[#0074CC]">John Doe</span>
+                    <span class="font-semibold">15.4K</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <!-- Question 2 -->
+          <article class="question-card flex gap-4 p-4 bg-white border border-[#E3E6E8] rounded-lg transition-all animate-slide-up" style="animation-delay: 50ms">
+            <div class="flex flex-col items-end gap-1 min-w-[80px] text-sm">
+              <div class="text-center">
+                <span class="font-semibold">87</span>
+                <span class="text-xs text-[#6A737C] ml-1">votes</span>
+              </div>
+              <div class="text-center border border-[#2E7D32] text-[#232629] rounded px-1.5 py-0.5">
+                <span class="font-semibold">1</span>
+                <span class="text-xs ml-1">answer</span>
+              </div>
+              <div class="text-center text-[#848D95]">
+                <span class="font-semibold">2.1K</span>
+                <span class="text-xs ml-1">views</span>
+              </div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <h3 class="mb-1">
+                <a href="#" class="text-[#0074CC] hover:text-[#0056A4] font-medium text-base leading-snug">
+                  What's the difference between useEffect and useLayoutEffect in React?
+                </a>
+              </h3>
+              <p class="text-[#6A737C] text-sm line-clamp-2 mb-2">
+                I've been using React hooks for a while now, but I'm still confused about when to use useEffect vs useLayoutEffect. From what I understand, both run after render...
+              </p>
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex flex-wrap gap-1">
+                  <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">react</a>
+                  <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">hooks</a>
+                  <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">useeffect</a>
+                </div>
+                <div class="flex items-center gap-2 text-xs">
+                  <span class="text-[#848D95]">asked 5 hours ago</span>
+                  <a href="#" class="flex items-center gap-1.5">
+                    <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop" class="w-4 h-4 rounded">
+                    <span class="text-[#0074CC]">Alex Chen</span>
+                    <span class="font-semibold">8.7K</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <!-- Question 3 with Bounty -->
+          <article class="question-card flex gap-4 p-4 bg-white border border-[#E3E6E8] rounded-lg transition-all animate-slide-up" style="animation-delay: 100ms">
+            <div class="flex flex-col items-end gap-1 min-w-[80px] text-sm">
+              <div class="text-center">
+                <span class="font-semibold text-[#F48024]">156</span>
+                <span class="text-xs text-[#6A737C] ml-1">votes</span>
+              </div>
+              <div class="text-center text-[#6A737C]">
+                <span class="font-semibold">0</span>
+                <span class="text-xs ml-1">answers</span>
+              </div>
+              <div class="text-center text-[#848D95]">
+                <span class="font-semibold">4.8K</span>
+                <span class="text-xs ml-1">views</span>
+              </div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <h3 class="mb-1">
+                <a href="#" class="text-[#0074CC] hover:text-[#0056A4] font-medium text-base leading-snug">
+                  <span class="inline-block px-1.5 py-0.5 text-xs rounded mr-2 text-white" style="background: linear-gradient(135deg, #0074CC 0%, #0056A4 100%)">+100</span>
+                  Best practices for securing REST APIs with JWT tokens
+                </a>
+              </h3>
+              <p class="text-[#6A737C] text-sm line-clamp-2 mb-2">
+                I'm building a REST API and want to implement JWT authentication. I have a few questions about security best practices: Should I store the JWT in localStorage, sessionStorage, or cookies?
+              </p>
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex flex-wrap gap-1">
+                  <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">security</a>
+                  <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">jwt</a>
+                  <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">rest-api</a>
+                  <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">authentication</a>
+                </div>
+                <div class="flex items-center gap-2 text-xs">
+                  <span class="text-[#848D95]">asked 1 day ago</span>
+                  <a href="#" class="flex items-center gap-1.5">
+                    <img src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop" class="w-4 h-4 rounded">
+                    <span class="text-[#0074CC]">Maria Garcia</span>
+                    <span class="font-semibold">21.8K</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <!-- Question 4 -->
+          <article class="question-card flex gap-4 p-4 bg-white border border-[#E3E6E8] rounded-lg transition-all animate-slide-up" style="animation-delay: 150ms">
+            <div class="flex flex-col items-end gap-1 min-w-[80px] text-sm">
+              <div class="text-center">
+                <span class="font-semibold">73</span>
+                <span class="text-xs text-[#6A737C] ml-1">votes</span>
+              </div>
+              <div class="text-center bg-[#2E7D32] text-white rounded px-1.5 py-0.5">
+                <span class="font-semibold">1</span>
+                <span class="text-xs ml-1">answer</span>
+              </div>
+              <div class="text-center text-[#848D95]">
+                <span class="font-semibold">1.8K</span>
+                <span class="text-xs ml-1">views</span>
+              </div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <h3 class="mb-1">
+                <a href="#" class="text-[#0074CC] hover:text-[#0056A4] font-medium text-base leading-snug">
+                  Understanding Rust's ownership model - borrow checker errors
+                </a>
+              </h3>
+              <p class="text-[#6A737C] text-sm line-clamp-2 mb-2">
+                I'm learning Rust and struggling with the borrow checker. The error message talks about mutable and immutable borrows. Can someone explain why this doesn't work?
+              </p>
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex flex-wrap gap-1">
+                  <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">rust</a>
+                  <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">ownership</a>
+                  <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">borrow-checker</a>
+                </div>
+                <div class="flex items-center gap-2 text-xs">
+                  <span class="text-[#848D95]">asked 2 days ago</span>
+                  <a href="#" class="flex items-center gap-1.5">
+                    <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop" class="w-4 h-4 rounded">
+                    <span class="text-[#0074CC]">John Doe</span>
+                    <span class="font-semibold">15.4K</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <!-- Question 5 -->
+          <article class="question-card flex gap-4 p-4 bg-white border border-[#E3E6E8] rounded-lg transition-all animate-slide-up" style="animation-delay: 200ms">
+            <div class="flex flex-col items-end gap-1 min-w-[80px] text-sm">
+              <div class="text-center">
+                <span class="font-semibold text-[#F48024]">234</span>
+                <span class="text-xs text-[#6A737C] ml-1">votes</span>
+              </div>
+              <div class="text-center bg-[#2E7D32] text-white rounded px-1.5 py-0.5">
+                <span class="font-semibold">1</span>
+                <span class="text-xs ml-1">answer</span>
+              </div>
+              <div class="text-center text-[#848D95]">
+                <span class="font-semibold">6.7K</span>
+                <span class="text-xs ml-1">views</span>
+              </div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <h3 class="mb-1">
+                <a href="#" class="text-[#0074CC] hover:text-[#0056A4] font-medium text-base leading-snug">
+                  CSS Grid vs Flexbox - when to use which?
+                </a>
+              </h3>
+              <p class="text-[#6A737C] text-sm line-clamp-2 mb-2">
+                I've been using CSS for years but still find myself confused about when to use Grid vs Flexbox. They seem to overlap a lot. Can someone provide clear guidelines on when each is more appropriate?
+              </p>
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex flex-wrap gap-1">
+                  <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">css</a>
+                  <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">flexbox</a>
+                  <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">css-grid</a>
+                  <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">layout</a>
+                </div>
+                <div class="flex items-center gap-2 text-xs">
+                  <span class="text-[#848D95]">asked 3 days ago</span>
+                  <a href="#" class="flex items-center gap-1.5">
+                    <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop" class="w-4 h-4 rounded">
+                    <span class="text-[#0074CC]">Alex Chen</span>
+                    <span class="font-semibold">8.7K</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <!-- Pagination -->
+        <div class="flex items-center justify-between mt-8 pt-4 border-t border-[#E3E6E8]">
+          <div class="flex items-center gap-1">
+            <button class="min-w-[32px] h-8 px-2 text-sm rounded border bg-[#F48024] text-white border-[#F48024]">1</button>
+            <button class="min-w-[32px] h-8 px-2 text-sm rounded border border-[#E3E6E8] text-[#6A737C] hover:bg-[#F8F9FA]">2</button>
+            <button class="min-w-[32px] h-8 px-2 text-sm rounded border border-[#E3E6E8] text-[#6A737C] hover:bg-[#F8F9FA]">3</button>
+            <span class="px-2 text-[#848D95]">...</span>
+            <button class="min-w-[32px] h-8 px-2 text-sm rounded border border-[#E3E6E8] text-[#6A737C] hover:bg-[#F8F9FA]">156</button>
+            <button class="px-4 py-1.5 text-sm font-medium border border-[#E3E6E8] rounded-md hover:bg-[#F8F9FA] ml-2">Next</button>
+          </div>
+          <div class="flex items-center gap-2 text-sm text-[#6A737C]">
+            <span>per page</span>
+            <select class="py-1 px-2 border border-[#E3E6E8] rounded-md text-sm">
+              <option>15</option>
+              <option>30</option>
+              <option>50</option>
+            </select>
+          </div>
+        </div>
+      </main>
+
+      <!-- Right Sidebar -->
+      <aside class="w-72 flex-shrink-0 hidden xl:block">
+        <div class="sticky top-20 space-y-4">
+          <!-- The Overflow Blog -->
+          <div class="bg-white border border-[#E3E6E8] rounded-lg overflow-hidden">
+            <div class="bg-[#F8F9FA] px-4 py-3 border-b border-[#E3E6E8]">
+              <h3 class="font-semibold text-sm">The Overflow Blog</h3>
+            </div>
+            <div class="p-4 space-y-3">
+              <div class="flex gap-2">
+                <svg class="w-4 h-4 text-[#848D95] flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 002 2H4a2 2 0 01-2-2V5zm3 1h6v4H5V6zm6 6H5v2h6v-2z" />
+                </svg>
+                <a href="#" class="text-sm text-[#232629] hover:text-[#0074CC] leading-snug">How to build AI apps that don't embarrass you</a>
+              </div>
+              <div class="flex gap-2">
+                <svg class="w-4 h-4 text-[#848D95] flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 002 2H4a2 2 0 01-2-2V5zm3 1h6v4H5V6zm6 6H5v2h6v-2z" />
+                </svg>
+                <a href="#" class="text-sm text-[#232629] hover:text-[#0074CC] leading-snug">Want to be a better developer? Take care of your sleep</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Hot Network Questions -->
+          <div class="bg-white border border-[#E3E6E8] rounded-lg overflow-hidden">
+            <div class="bg-[#F8F9FA] px-4 py-3 border-b border-[#E3E6E8]">
+              <h3 class="font-semibold text-sm">Hot Network Questions</h3>
+            </div>
+            <div class="divide-y divide-[#E3E6E8]">
+              <a href="#" class="block px-4 py-3 hover:bg-[#F8F9FA] transition-colors">
+                <p class="text-sm text-[#0074CC] hover:text-[#0056A4] line-clamp-2 leading-snug">How to properly handle async/await errors in TypeScript?</p>
+              </a>
+              <a href="#" class="block px-4 py-3 hover:bg-[#F8F9FA] transition-colors">
+                <p class="text-sm text-[#0074CC] hover:text-[#0056A4] line-clamp-2 leading-snug">What's the difference between useEffect and useLayoutEffect?</p>
+              </a>
+              <a href="#" class="block px-4 py-3 hover:bg-[#F8F9FA] transition-colors">
+                <p class="text-sm text-[#0074CC] hover:text-[#0056A4] line-clamp-2 leading-snug">Best practices for securing REST APIs with JWT tokens</p>
+              </a>
+            </div>
+          </div>
+
+          <!-- Watched Tags -->
+          <div class="bg-white border border-[#E3E6E8] rounded-lg overflow-hidden">
+            <div class="bg-[#F8F9FA] px-4 py-3 border-b border-[#E3E6E8] flex items-center justify-between">
+              <h3 class="font-semibold text-sm">Watched Tags</h3>
+              <button class="text-[#0074CC] hover:text-[#0056A4] text-xs font-medium">edit</button>
+            </div>
+            <div class="p-4">
+              <div class="flex flex-wrap gap-1.5">
+                <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">javascript</a>
+                <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">typescript</a>
+                <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">react</a>
+                <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">node.js</a>
+                <a href="#" class="tag px-1.5 py-0.5 bg-[#E6F4FF] text-[#0074CC] rounded text-xs font-medium transition-all">css</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Collectives -->
+          <div class="bg-white border border-[#E3E6E8] rounded-lg overflow-hidden">
+            <div class="bg-[#F8F9FA] px-4 py-3 border-b border-[#E3E6E8]">
+              <h3 class="font-semibold text-sm">Collectives</h3>
+            </div>
+            <div class="p-4 space-y-3">
+              <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded bg-[#0074CC]/10 flex items-center justify-center flex-shrink-0">
+                  <span class="text-[#0074CC] font-semibold text-sm">A</span>
+                </div>
+                <div>
+                  <a href="#" class="text-sm font-medium text-[#232629] hover:text-[#0074CC]">AWS</a>
+                  <p class="text-xs text-[#848D95]">12,453 Members</p>
+                </div>
+              </div>
+              <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded bg-[#0074CC]/10 flex items-center justify-center flex-shrink-0">
+                  <span class="text-[#0074CC] font-semibold text-sm">G</span>
+                </div>
+                <div>
+                  <a href="#" class="text-sm font-medium text-[#232629] hover:text-[#0074CC]">Google Cloud</a>
+                  <p class="text-xs text-[#848D95]">8,721 Members</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-[#232629] text-[#848D95] mt-12 py-12">
+    <div class="max-w-7xl mx-auto px-4">
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-8">
+        <div>
+          <h4 class="text-white font-semibold mb-4">STACK EXCHANGE</h4>
+          <ul class="space-y-2 text-sm">
+            <li><a href="#" class="hover:text-white transition-colors">Questions</a></li>
+            <li><a href="#" class="hover:text-white transition-colors">Help</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="text-white font-semibold mb-4">PRODUCTS</h4>
+          <ul class="space-y-2 text-sm">
+            <li><a href="#" class="hover:text-white transition-colors">Teams</a></li>
+            <li><a href="#" class="hover:text-white transition-colors">Advertising</a></li>
+            <li><a href="#" class="hover:text-white transition-colors">Collectives</a></li>
+            <li><a href="#" class="hover:text-white transition-colors">Talent</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="text-white font-semibold mb-4">COMPANY</h4>
+          <ul class="space-y-2 text-sm">
+            <li><a href="#" class="hover:text-white transition-colors">About</a></li>
+            <li><a href="#" class="hover:text-white transition-colors">Press</a></li>
+            <li><a href="#" class="hover:text-white transition-colors">Work Here</a></li>
+            <li><a href="#" class="hover:text-white transition-colors">Legal</a></li>
+            <li><a href="#" class="hover:text-white transition-colors">Privacy Policy</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="text-white font-semibold mb-4">STACK NETWORK</h4>
+          <ul class="space-y-2 text-sm">
+            <li><a href="#" class="hover:text-white transition-colors">Technology</a></li>
+            <li><a href="#" class="hover:text-white transition-colors">Culture & recreation</a></li>
+            <li><a href="#" class="hover:text-white transition-colors">Life & arts</a></li>
+            <li><a href="#" class="hover:text-white transition-colors">Science</a></li>
+            <li><a href="#" class="hover:text-white transition-colors">Professional</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="text-white font-semibold mb-4">SOCIAL</h4>
+          <ul class="space-y-2 text-sm">
+            <li><a href="#" class="hover:text-white transition-colors">Blog</a></li>
+            <li><a href="#" class="hover:text-white transition-colors">Facebook</a></li>
+            <li><a href="#" class="hover:text-white transition-colors">Twitter</a></li>
+            <li><a href="#" class="hover:text-white transition-colors">LinkedIn</a></li>
+            <li><a href="#" class="hover:text-white transition-colors">Instagram</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="mt-8 pt-8 border-t border-[#3C4146] text-sm text-center">
+        <p>Site design / logo © 2024 Stack Exchange Inc; user contributions licensed under CC BY-SA.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
