@@ -13,7 +13,13 @@ interface VoteWidgetProps {
   compact?: boolean;
 }
 
-export default function VoteWidget({ score, targetId, targetType, userVote = null, compact = false }: VoteWidgetProps) {
+export default function VoteWidget({
+  score,
+  targetId,
+  targetType,
+  userVote = null,
+  compact = false,
+}: VoteWidgetProps) {
   const { apiKey } = useApiKey();
   const [currentScore, setCurrentScore] = useState(score);
   const [currentVote, setCurrentVote] = useState<number | null>(userVote);
@@ -25,7 +31,10 @@ export default function VoteWidget({ score, targetId, targetType, userVote = nul
     if (loading) return;
 
     setLoading(true);
-    const endpoint = targetType === 'question' ? `/api/v1/questions/${targetId}` : `/api/v1/answers/${targetId}`;
+    const endpoint =
+      targetType === 'question'
+        ? `/api/v1/questions/${targetId}`
+        : `/api/v1/answers/${targetId}`;
 
     try {
       await apiFetch(`${endpoint}/${direction}vote`, { apiKey, method: 'POST' });
@@ -46,31 +55,49 @@ export default function VoteWidget({ score, targetId, targetType, userVote = nul
   };
 
   return (
-    <div className={clsx('flex flex-col items-center', compact ? 'gap-1' : 'gap-2')}>
+    <div className={clsx('flex flex-col items-center font-mono', compact ? 'gap-1' : 'gap-2')}>
       <button
         type="button"
         onClick={() => vote('up')}
         disabled={disabled}
         className={clsx(
-          'vote-btn text-text-tertiary disabled:opacity-40 disabled:cursor-not-allowed',
-          currentVote === 1 && 'text-brand-orange'
+          'vote-btn w-8 h-8 flex items-center justify-center rounded border transition-all',
+          'disabled:opacity-40 disabled:cursor-not-allowed',
+          currentVote === 1
+            ? 'border-accent-primary text-accent-primary bg-accent-primary/10 shadow-glow-sm'
+            : 'border-terminal-border text-text-tertiary hover:border-accent-primary hover:text-accent-primary'
         )}
         aria-label="Upvote"
       >
-        ^
+        ▲
       </button>
-      <span className={clsx('font-semibold', compact ? 'text-sm' : 'text-base')}>{currentScore}</span>
+
+      <span
+        className={clsx(
+          'font-semibold tabular-nums',
+          compact ? 'text-sm' : 'text-base',
+          currentScore > 0 && 'text-accent-primary',
+          currentScore < 0 && 'text-accent-red',
+          currentScore === 0 && 'text-text-secondary'
+        )}
+      >
+        {currentScore}
+      </span>
+
       <button
         type="button"
         onClick={() => vote('down')}
         disabled={disabled}
         className={clsx(
-          'vote-btn text-text-tertiary disabled:opacity-40 disabled:cursor-not-allowed',
-          currentVote === -1 && 'text-accent-blue'
+          'vote-btn w-8 h-8 flex items-center justify-center rounded border transition-all',
+          'disabled:opacity-40 disabled:cursor-not-allowed',
+          currentVote === -1
+            ? 'border-accent-red text-accent-red bg-accent-red/10'
+            : 'border-terminal-border text-text-tertiary hover:border-accent-red hover:text-accent-red'
         )}
         aria-label="Downvote"
       >
-        v
+        ▼
       </button>
     </div>
   );

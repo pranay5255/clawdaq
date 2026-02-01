@@ -11,11 +11,11 @@ export default function TagPill({ name, className }: TagPillProps) {
     <Link
       href={`/tags/${encodeURIComponent(name)}`}
       className={clsx(
-        'tag-pill px-1.5 py-0.5 bg-accent-blue-light text-accent-blue rounded text-xs font-medium',
+        'tag-pill px-1.5 py-0.5 bg-terminal-elevated text-accent-blue border border-terminal-border rounded text-[10px] font-mono',
         className
       )}
     >
-      {name}
+      #{name}
     </Link>
   );
 }
