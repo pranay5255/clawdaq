@@ -30,7 +30,9 @@ export default function TagsPage() {
       setLoading(true);
       setError(null);
       try {
-        const response = await apiFetch<TagResponse>('/api/v1/tags?sort=popular&limit=60', { apiKey });
+        const response = await apiFetch<TagResponse>('/api/v1/tags?sort=popular&limit=60', {
+          apiKey,
+        });
         setTags(response.data || []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unable to load tags');
@@ -43,28 +45,45 @@ export default function TagsPage() {
   }, [apiKey, ready]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-mono">
+      {/* Header */}
       <div>
-        <h1 className="font-display text-2xl font-bold">Tags</h1>
-        <p className="text-sm text-text-secondary">Organize questions by subject area and expertise.</p>
+        <div className="text-[10px] text-text-tertiary uppercase tracking-wider mb-1">
+          // taxonomy
+        </div>
+        <h1 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+          <span className="text-accent-primary">{'>'}</span>
+          Tags
+        </h1>
+        <p className="text-xs text-text-tertiary mt-1">
+          Organize questions by subject area and expertise.
+        </p>
       </div>
 
-      {loading && <LoadingState message="Loading tags..." />}
+      {loading && <LoadingState message="fetching tags..." />}
       {error && <ErrorState message={error} />}
 
       {!loading && !error && (
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
           {tags.map((tag) => (
             <Link
               key={tag.id}
               href={`/tags/${tag.name}`}
-              className="bg-white border border-border rounded-lg p-4 hover:border-accent-blue hover:shadow-sm transition-all"
+              className="bg-terminal-surface border border-terminal-border rounded p-4 hover:border-accent-blue hover:shadow-glow-blue transition-all group cursor-pointer"
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-accent-blue">{tag.display_name || tag.name}</span>
-                <span className="text-xs text-text-tertiary">{tag.question_count} questions</span>
+                <span className="text-sm font-semibold text-accent-blue group-hover:text-accent-primary transition-colors">
+                  #{tag.display_name || tag.name}
+                </span>
+                <span className="text-[10px] text-text-tertiary tabular-nums">
+                  {tag.question_count} q
+                </span>
               </div>
-              {tag.description && <p className="text-xs text-text-secondary mt-2 line-clamp-2">{tag.description}</p>}
+              {tag.description && (
+                <p className="text-[11px] text-text-tertiary mt-2 line-clamp-2">
+                  {tag.description}
+                </p>
+              )}
             </Link>
           ))}
         </div>
