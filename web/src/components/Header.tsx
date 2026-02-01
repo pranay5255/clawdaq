@@ -27,83 +27,108 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-white border-b border-border shadow-sm">
+    <header className="sticky top-0 z-50 bg-terminal-bg/95 backdrop-blur-sm border-b border-terminal-border">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between h-14 gap-4">
-          <Link href="/" className="flex items-center gap-2 flex-shrink-0">
-            <div className="w-8 h-8 gradient-brand rounded-md flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                <path d="M18 20H4V11H2V22H20V11H18V20ZM17 7L15.6 5.6L13 8.2V2H11V8.2L8.4 5.6L7 7L12 12L17 7Z" />
-              </svg>
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2 flex-shrink-0 group">
+            <div className="w-8 h-8 border border-accent-primary rounded flex items-center justify-center group-hover:shadow-glow-sm transition-shadow">
+              <span className="text-accent-primary font-bold text-sm">M</span>
             </div>
-            <span className="hidden sm:block font-display font-bold text-lg">
-              molt<span className="text-brand-orange">exchange</span>
+            <span className="hidden sm:block font-mono font-semibold text-sm tracking-tight">
+              <span className="text-text-primary">molt</span>
+              <span className="text-accent-primary">exchange</span>
             </span>
           </Link>
 
-          <form onSubmit={onSearch} className="flex-1 max-w-2xl hidden md:block">
+          {/* Search */}
+          <form onSubmit={onSearch} className="flex-1 max-w-xl hidden md:block">
             <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary text-xs font-mono">
+                $
+              </span>
               <input
                 type="text"
-                placeholder="Search questions..."
+                placeholder="search queries..."
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                className="w-full pl-10 pr-4 py-1.5 text-sm border border-border rounded-md focus:border-accent-blue focus:ring-2 focus:ring-accent-blue/20 outline-none transition-all"
+                className="w-full pl-7 pr-4 py-1.5 text-sm bg-terminal-surface border border-terminal-border rounded focus:border-accent-primary focus:shadow-glow-sm outline-none transition-all text-text-primary placeholder:text-text-tertiary font-mono"
               />
+              <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:inline-block px-1.5 py-0.5 text-[10px] text-text-tertiary bg-terminal-elevated border border-terminal-border rounded">
+                /
+              </kbd>
             </div>
           </form>
 
-          <nav className="hidden lg:flex items-center gap-1">
-            <Link href="/" className="px-3 py-2 text-sm font-medium text-brand-orange bg-brand-orange-light rounded-md">Questions</Link>
-            <Link href="/tags" className="px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-secondary rounded-md transition-colors">Tags</Link>
-            <Link href="/agents/leaderboard" className="px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-secondary rounded-md transition-colors">Users</Link>
+          {/* Navigation */}
+          <nav className="hidden lg:flex items-center gap-1 text-xs font-mono">
+            <Link
+              href="/"
+              className="px-3 py-1.5 text-accent-primary bg-accent-primary/10 border border-accent-primary/30 rounded hover:shadow-glow-sm transition-all"
+            >
+              [questions]
+            </Link>
+            <Link
+              href="/tags"
+              className="px-3 py-1.5 text-text-secondary hover:text-accent-primary hover:bg-terminal-surface border border-transparent hover:border-terminal-border rounded transition-all"
+            >
+              [tags]
+            </Link>
+            <Link
+              href="/agents/leaderboard"
+              className="px-3 py-1.5 text-text-secondary hover:text-accent-primary hover:bg-terminal-surface border border-transparent hover:border-terminal-border rounded transition-all"
+            >
+              [agents]
+            </Link>
           </nav>
 
+          {/* API Key */}
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setShowKeyInput((value) => !value)}
               className={clsx(
-                'px-3 py-1.5 text-sm font-medium rounded-md border transition-colors',
-                apiKey ? 'border-accent-blue text-accent-blue bg-accent-blue/10' : 'border-border hover:bg-surface-secondary'
+                'px-3 py-1.5 text-xs font-mono rounded border transition-all',
+                apiKey
+                  ? 'border-accent-primary/50 text-accent-primary bg-accent-primary/10 hover:shadow-glow-sm'
+                  : 'border-terminal-border text-text-secondary hover:text-text-primary hover:bg-terminal-surface'
               )}
             >
-              {apiKey ? 'API key set' : 'Set API key'}
+              {apiKey ? '● connected' : '○ connect'}
             </button>
             {apiKey && (
               <button
                 type="button"
                 onClick={clearApiKey}
-                className="px-3 py-1.5 text-sm font-medium border border-border rounded-md hover:bg-surface-secondary transition-colors"
+                className="px-2 py-1.5 text-xs font-mono border border-terminal-border text-text-tertiary hover:text-accent-red hover:border-accent-red/50 rounded transition-all"
               >
-                Clear
+                ×
               </button>
             )}
           </div>
         </div>
       </div>
 
+      {/* API Key Input Panel */}
       {showKeyInput && (
-        <div className="border-t border-border bg-surface-secondary">
+        <div className="border-t border-terminal-border bg-terminal-surface">
           <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row gap-3 md:items-center">
+            <span className="text-xs text-text-tertiary font-mono">api_key:</span>
             <div className="flex-1">
               <input
                 type="text"
                 value={keyInput}
                 onChange={(event) => setKeyInput(event.target.value)}
-                placeholder="Paste your moltexchange API key"
-                className="w-full px-3 py-2 text-sm border border-border rounded-md focus:border-accent-blue focus:ring-2 focus:ring-accent-blue/20 outline-none"
+                placeholder="paste your moltexchange API key"
+                className="w-full px-3 py-2 text-sm bg-terminal-bg border border-terminal-border rounded focus:border-accent-primary focus:shadow-glow-sm outline-none font-mono text-text-primary"
               />
             </div>
             <button
               type="button"
               onClick={onSaveKey}
-              className="px-4 py-2 text-sm font-medium bg-accent-blue text-white rounded-md hover:bg-accent-blue-dark transition-colors"
+              className="px-4 py-2 text-xs font-mono bg-accent-primary text-text-inverse rounded hover:shadow-glow-md transition-all font-semibold"
             >
-              Save API Key
+              [save]
             </button>
           </div>
         </div>
