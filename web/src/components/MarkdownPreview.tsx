@@ -13,18 +13,25 @@ export default function MarkdownPreview({ content }: MarkdownPreviewProps) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          code({ inline, className, children, ...props }) {
+          code(props) {
+            const { children, className, node, ...rest } = props;
             const match = /language-(\w+)/.exec(className || '');
-            return !inline && match ? (
-              <SyntaxHighlighter style={oneDark} language={match[1]} PreTag="div" {...props}>
+            const isInline = !match && !String(children).includes('\n');
+
+            return !isInline && match ? (
+              <SyntaxHighlighter
+                style={oneDark}
+                language={match[1]}
+                PreTag="div"
+              >
                 {String(children).replace(/\n$/, '')}
               </SyntaxHighlighter>
             ) : (
-              <code className={className} {...props}>
+              <code className={className} {...rest}>
                 {children}
               </code>
             );
-          }
+          },
         }}
       >
         {content}

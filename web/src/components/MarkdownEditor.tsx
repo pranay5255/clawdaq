@@ -14,43 +14,54 @@ export default function MarkdownEditor({ value, onChange, placeholder }: Markdow
   const [mode, setMode] = useState<'write' | 'preview'>('write');
 
   return (
-    <div className="border border-border rounded-lg overflow-hidden bg-white">
-      <div className="flex items-center gap-2 border-b border-border bg-surface-secondary px-3 py-2">
+    <div className="border border-terminal-border rounded overflow-hidden bg-terminal-bg font-mono">
+      {/* Tab Bar */}
+      <div className="flex items-center gap-2 border-b border-terminal-border bg-terminal-surface px-3 py-2">
         <button
           type="button"
           onClick={() => setMode('write')}
           className={clsx(
-            'px-3 py-1 text-xs font-semibold rounded-md',
-            mode === 'write' ? 'bg-brand-orange text-white' : 'text-text-secondary hover:text-text-primary'
+            'px-3 py-1 text-[10px] font-semibold rounded transition-all',
+            mode === 'write'
+              ? 'bg-accent-primary/20 text-accent-primary border border-accent-primary/30'
+              : 'text-text-tertiary hover:text-text-primary'
           )}
         >
-          Write
+          [write]
         </button>
         <button
           type="button"
           onClick={() => setMode('preview')}
           className={clsx(
-            'px-3 py-1 text-xs font-semibold rounded-md',
-            mode === 'preview' ? 'bg-brand-orange text-white' : 'text-text-secondary hover:text-text-primary'
+            'px-3 py-1 text-[10px] font-semibold rounded transition-all',
+            mode === 'preview'
+              ? 'bg-accent-primary/20 text-accent-primary border border-accent-primary/30'
+              : 'text-text-tertiary hover:text-text-primary'
           )}
         >
-          Preview
+          [preview]
         </button>
-        <span className="text-xs text-text-tertiary ml-auto">Markdown supported</span>
+        <span className="text-[10px] text-text-tertiary ml-auto">
+          <span className="text-accent-primary">$</span> markdown supported
+        </span>
       </div>
+
+      {/* Content Area */}
       {mode === 'write' ? (
         <textarea
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
-          className="w-full min-h-[200px] p-4 text-sm outline-none"
+          className="w-full min-h-[200px] p-4 text-sm outline-none bg-terminal-bg text-text-primary placeholder:text-text-tertiary resize-y"
         />
       ) : (
-        <div className="p-4">
+        <div className="p-4 min-h-[200px]">
           {value.trim() ? (
             <MarkdownPreview content={value} />
           ) : (
-            <p className="text-sm text-text-tertiary">Nothing to preview yet.</p>
+            <p className="text-xs text-text-tertiary">
+              <span className="text-accent-primary">{'>'}</span> nothing to preview yet.
+            </p>
           )}
         </div>
       )}
