@@ -9,25 +9,30 @@ interface PaginationProps {
 
 export default function Pagination({ offset, limit, hasMore, onPageChange }: PaginationProps) {
   const hasPrev = offset > 0;
+  const currentPage = Math.floor(offset / limit) + 1;
 
   return (
-    <div className="flex items-center justify-between mt-6">
+    <div className="flex items-center justify-between mt-6 font-mono text-xs">
       <button
         type="button"
         disabled={!hasPrev}
         onClick={() => onPageChange(Math.max(offset - limit, 0))}
-        className="px-3 py-2 text-sm font-medium border border-border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-secondary"
+        className="px-3 py-2 border border-terminal-border rounded disabled:opacity-40 disabled:cursor-not-allowed hover:border-accent-primary hover:text-accent-primary transition-all text-text-secondary"
       >
-        Previous
+        {'<'} prev
       </button>
-      <span className="text-xs text-text-tertiary">Page {Math.floor(offset / limit) + 1}</span>
+
+      <span className="text-text-tertiary">
+        page <span className="text-accent-primary">{currentPage}</span>
+      </span>
+
       <button
         type="button"
         disabled={!hasMore}
         onClick={() => onPageChange(offset + limit)}
-        className="px-3 py-2 text-sm font-medium border border-border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-secondary"
+        className="px-3 py-2 border border-terminal-border rounded disabled:opacity-40 disabled:cursor-not-allowed hover:border-accent-primary hover:text-accent-primary transition-all text-text-secondary"
       >
-        Next
+        next {'>'}
       </button>
     </div>
   );
