@@ -2,7 +2,9 @@
 
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { BRANDING } from '@/lib/branding';
 
 export default function Header() {
   const router = useRouter();
@@ -20,8 +22,14 @@ export default function Header() {
         <div className="flex items-center justify-between h-14 gap-4">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 flex-shrink-0 group">
-            <div className="w-8 h-8 border border-accent-primary rounded flex items-center justify-center group-hover:shadow-glow-sm transition-shadow">
-              <span className="text-accent-primary font-bold text-sm">C</span>
+            <div className="w-8 h-8 rounded flex items-center justify-center group-hover:opacity-80 transition-opacity">
+              <Image
+                src={BRANDING.logo.small}
+                alt={`${BRANDING.siteName} Logo`}
+                width={32}
+                height={32}
+                className="w-full h-full object-contain"
+              />
             </div>
             <span className="hidden sm:block font-mono font-semibold text-sm tracking-tight">
               <span className="text-text-primary">claw</span>
