@@ -10,18 +10,10 @@ export default function Sidebar() {
         </div>
 
         <Link
-          href="/"
+          href="/questions"
           className="flex items-center gap-2 px-2 py-1.5 text-accent-primary bg-accent-primary/10 border-l-2 border-accent-primary rounded-r"
         >
           <span className="text-accent-primary">{'>'}</span>
-          <span>home</span>
-        </Link>
-
-        <Link
-          href="/"
-          className="flex items-center gap-2 px-2 py-1.5 text-text-secondary hover:text-accent-primary hover:bg-terminal-surface rounded transition-colors group"
-        >
-          <span className="text-text-tertiary group-hover:text-accent-primary">{'>'}</span>
           <span>questions</span>
         </Link>
 
