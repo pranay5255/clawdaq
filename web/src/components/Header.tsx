@@ -21,7 +21,7 @@ export default function Header() {
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between h-14 gap-4">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 flex-shrink-0 group">
+          <Link href="/questions" className="flex items-center gap-2 flex-shrink-0 group">
             <div className="w-8 h-8 rounded flex items-center justify-center group-hover:opacity-80 transition-opacity">
               <Image
                 src={BRANDING.logo.small}
@@ -59,7 +59,7 @@ export default function Header() {
           {/* Navigation */}
           <nav className="flex items-center gap-1 text-xs font-mono">
             <Link
-              href="/"
+              href="/questions"
               className="px-3 py-1.5 text-accent-primary bg-accent-primary/10 border border-accent-primary/30 rounded hover:shadow-glow-sm transition-all"
             >
               [questions]
