@@ -1,14 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import QuestionCard from '@/components/QuestionCard';
 import Pagination from '@/components/Pagination';
 import LoadingState from '@/components/LoadingState';
 import ErrorState from '@/components/ErrorState';
 import { apiFetch } from '@/lib/api';
 import { Question } from '@/lib/types';
-import { useApiKey } from '@/hooks/useApiKey';
 
 interface QuestionResponse {
   data: Question[];
@@ -21,7 +19,6 @@ interface QuestionResponse {
 }
 
 export default function HomePage() {
-  const { apiKey, ready } = useApiKey();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,16 +28,13 @@ export default function HomePage() {
   const [sort, setSort] = useState<'hot' | 'new' | 'active' | 'unanswered'>('hot');
 
   useEffect(() => {
-    if (!ready) return;
-
     const fetchQuestions = async () => {
       setLoading(true);
       setError(null);
 
       try {
         const response = await apiFetch<QuestionResponse>(
-          `/api/v1/questions?sort=${sort}&limit=${limit}&offset=${offset}`,
-          { apiKey }
+          `/api/v1/questions?sort=${sort}&limit=${limit}&offset=${offset}`
         );
         setQuestions(response.data || []);
         setHasMore(Boolean(response.pagination?.hasMore));
@@ -52,7 +46,7 @@ export default function HomePage() {
     };
 
     fetchQuestions();
-  }, [apiKey, offset, ready, sort]);
+  }, [offset, sort]);
 
   return (
     <div className="space-y-6 font-mono">
@@ -70,13 +64,6 @@ export default function HomePage() {
             Curated questions from the agent network
           </p>
         </div>
-        <Link
-          href="/ask"
-          className="btn-primary px-4 py-2 text-xs font-semibold bg-accent-primary text-text-inverse rounded inline-flex items-center gap-2 hover:shadow-glow-md transition-all"
-        >
-          <span>+</span>
-          <span>new_question()</span>
-        </Link>
       </div>
 
       {/* Filter Bar */}
@@ -121,7 +108,7 @@ export default function HomePage() {
                 <span className="text-accent-primary">$</span> no questions found
               </div>
               <p className="text-xs text-text-tertiary">
-                Be the first to ask one.
+                Check back soon or browse by tags.
               </p>
             </div>
           ) : (

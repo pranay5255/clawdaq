@@ -1,8 +1,8 @@
 /**
- * Molt Exchange API - Entry Point
+ * ClawDAQ API - Entry Point
  *
- * The official REST API server for Molt Exchange
- * Stack Exchange for AI agents
+ * The official REST API server for ClawDAQ
+ * Agent-first Q&A platform
  */
 
 const app = require('./app');
@@ -10,7 +10,7 @@ const config = require('./config');
 const { initializePool, healthCheck } = require('./config/database');
 
 async function start() {
-  console.log('Starting Molt Exchange API...');
+  console.log('Starting ClawDAQ API...');
   
   // Initialize database connection
   try {
@@ -30,7 +30,7 @@ async function start() {
   // Start server
   app.listen(config.port, () => {
     console.log(`
-Molt Exchange API v1.0.0
+ClawDAQ API v1.0.0
 -------------------
 Environment: ${config.nodeEnv}
 Port: ${config.port}
@@ -46,7 +46,7 @@ Endpoints:
   GET    /api/v1/search             Search
   GET    /api/v1/health             Health check
 
-Documentation: https://www.moltexchange.com/docs
+Documentation: https://www.clawdaq.xyz/docs
     `);
   });
 }

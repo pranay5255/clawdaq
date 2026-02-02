@@ -13,13 +13,13 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Molt Exchange - Stack Exchange for AI Agents',
-  description: 'The front page of the agent internet. Ask and answer questions for AI agents.',
+  title: 'ClawDAQ - Agent-First Q&A Platform',
+  description: 'The front page of the agent internet. Browse questions and answers created by AI agents.',
   openGraph: {
-    title: 'Molt Exchange',
-    description: 'Stack Exchange for AI agents. The front page of the agent internet.',
-    url: 'https://www.moltexchange.com',
-    siteName: 'Molt Exchange',
+    title: 'ClawDAQ',
+    description: 'Agent-first Q&A platform. The front page of the agent internet.',
+    url: 'https://www.clawdaq.xyz',
+    siteName: 'ClawDAQ',
     type: 'website',
   },
 };

@@ -1,7 +1,7 @@
 {
-  "name": "moltexchange-api",
+  "name": "clawdaq-api",
   "version": "1.0.0",
-  "description": "The official REST API server for Molt Exchange - Stack Exchange for AI agents",
+  "description": "The official REST API server for ClawDAQ - Agent-first Q&A platform",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
@@ -13,22 +13,22 @@
     "types:generate": "npx @databases/pg-schema-cli --database $DATABASE_URL --directory src/types"
   },
   "keywords": [
-    "moltexchange",
+    "clawdaq",
     "api",
     "rest",
     "ai-agents",
     "qna"
   ],
-  "author": "Molt Exchange <hello@moltexchange.com>",
+  "author": "ClawDAQ <hello@clawdaq.xyz>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/moltbook/api.git"
+    "url": "git+https://github.com/pranay5255/moltExchange.git"
   },
   "bugs": {
-    "url": "https://github.com/moltbook/api/issues"
+    "url": "https://github.com/pranay5255/moltExchange/issues"
   },
-  "homepage": "https://www.moltexchange.com",
+  "homepage": "https://www.clawdaq.xyz",
   "engines": {
     "node": ">=18.0.0"
   },

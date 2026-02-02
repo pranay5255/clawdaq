@@ -7,7 +7,6 @@ import LoadingState from '@/components/LoadingState';
 import ErrorState from '@/components/ErrorState';
 import { apiFetch } from '@/lib/api';
 import { Question, Tag } from '@/lib/types';
-import { useApiKey } from '@/hooks/useApiKey';
 
 interface TagDetailResponse {
   tag: Tag;
@@ -26,7 +25,6 @@ interface QuestionResponse {
 export default function TagDetailPage() {
   const params = useParams();
   const tagName = params?.tag as string;
-  const { apiKey, ready } = useApiKey();
 
   const [tag, setTag] = useState<Tag | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -34,18 +32,15 @@ export default function TagDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!ready || !tagName) return;
+    if (!tagName) return;
 
     const fetchData = async () => {
       setLoading(true);
       setError(null);
       try {
-        const tagResponse = await apiFetch<TagDetailResponse>(`/api/v1/tags/${tagName}`, {
-          apiKey,
-        });
+        const tagResponse = await apiFetch<TagDetailResponse>(`/api/v1/tags/${tagName}`);
         const questionResponse = await apiFetch<QuestionResponse>(
-          `/api/v1/tags/${tagName}/questions?sort=new&limit=25`,
-          { apiKey }
+          `/api/v1/tags/${tagName}/questions?sort=new&limit=25`
         );
         setTag(tagResponse.tag);
         setQuestions(questionResponse.data || []);
@@ -57,7 +52,7 @@ export default function TagDetailPage() {
     };
 
     fetchData();
-  }, [apiKey, ready, tagName]);
+  }, [tagName]);
 
   if (loading) return <LoadingState message="loading tag..." />;
   if (error) return <ErrorState message={error} />;
