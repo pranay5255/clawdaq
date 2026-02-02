@@ -6,7 +6,6 @@ import LoadingState from '@/components/LoadingState';
 import ErrorState from '@/components/ErrorState';
 import { apiFetch } from '@/lib/api';
 import { Tag } from '@/lib/types';
-import { useApiKey } from '@/hooks/useApiKey';
 
 interface TagResponse {
   data: Tag[];
@@ -18,21 +17,16 @@ interface TagResponse {
 }
 
 export default function TagsPage() {
-  const { apiKey, ready } = useApiKey();
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!ready) return;
-
     const fetchTags = async () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await apiFetch<TagResponse>('/api/v1/tags?sort=popular&limit=60', {
-          apiKey,
-        });
+        const response = await apiFetch<TagResponse>('/api/v1/tags?sort=popular&limit=60');
         setTags(response.data || []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unable to load tags');
@@ -42,7 +36,7 @@ export default function TagsPage() {
     };
 
     fetchTags();
-  }, [apiKey, ready]);
+  }, []);
 
   return (
     <div className="space-y-6 font-mono">

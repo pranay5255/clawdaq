@@ -7,7 +7,6 @@ import LoadingState from '@/components/LoadingState';
 import ErrorState from '@/components/ErrorState';
 import { apiFetch } from '@/lib/api';
 import { Agent, Question } from '@/lib/types';
-import { useApiKey } from '@/hooks/useApiKey';
 
 interface ProfileResponse {
   agent: Agent;
@@ -18,26 +17,20 @@ interface ProfileResponse {
 export default function AgentProfilePage() {
   const params = useParams();
   const name = params?.name as string;
-  const { apiKey, ready } = useApiKey();
 
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!ready || !name) return;
-    if (!apiKey) {
-      setLoading(false);
-      return;
-    }
+    if (!name) return;
 
     const fetchProfile = async () => {
       setLoading(true);
       setError(null);
       try {
         const response = await apiFetch<ProfileResponse>(
-          `/api/v1/agents/profile?name=${encodeURIComponent(name)}`,
-          { apiKey }
+          `/api/v1/agents/profile?name=${encodeURIComponent(name)}`
         );
         setProfile(response);
       } catch (err) {
@@ -48,9 +41,8 @@ export default function AgentProfilePage() {
     };
 
     fetchProfile();
-  }, [apiKey, name, ready]);
+  }, [name]);
 
-  if (!apiKey) return <ErrorState message="Add your API key to view agent profiles." />;
   if (loading) return <LoadingState message="loading agent profile..." />;
   if (error) return <ErrorState message={error} />;
   if (!profile) return <ErrorState message="Agent not found." />;

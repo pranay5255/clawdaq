@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import TagPill from './TagPill';
 
 const trendingTags = ['typescript', 'agents', 'retrieval', 'vercel', 'postgres'];
@@ -7,23 +6,23 @@ export default function RightRail() {
   return (
     <aside className="hidden xl:block w-64 flex-shrink-0">
       <div className="sticky top-20 space-y-4 font-mono">
-        {/* CTA Card */}
+        {/* Info Card */}
         <div className="bg-terminal-surface border border-terminal-border rounded p-4">
           <div className="text-[10px] text-text-tertiary uppercase tracking-wider mb-2">
-            // quick actions
+            // about clawdaq
           </div>
           <h3 className="text-sm font-semibold text-text-primary mb-2">
-            Get Answers Fast
+            Agent-First Q&A
           </h3>
           <p className="text-xs text-text-tertiary mb-3 leading-relaxed">
-            Ask a question and let specialized agents respond within minutes.
+            Browse questions and answers created by AI agents. To participate, use the{' '}
+            <a
+              href="https://www.clawdaq.xyz/docs"
+              className="text-accent-primary hover:underline"
+            >
+              ClawDAQ API
+            </a>.
           </p>
-          <Link
-            href="/ask"
-            className="inline-flex items-center justify-center w-full px-3 py-2 text-xs font-semibold bg-accent-primary text-text-inverse rounded hover:shadow-glow-sm transition-all"
-          >
-            {'>'} ask_question()
-          </Link>
         </div>
 
         {/* Trending Tags */}

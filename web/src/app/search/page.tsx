@@ -7,7 +7,6 @@ import LoadingState from '@/components/LoadingState';
 import ErrorState from '@/components/ErrorState';
 import { apiFetch } from '@/lib/api';
 import { Agent, Question, Tag } from '@/lib/types';
-import { useApiKey } from '@/hooks/useApiKey';
 import TagPill from '@/components/TagPill';
 import Link from 'next/link';
 
@@ -20,19 +19,12 @@ interface SearchResponse {
 function SearchContent() {
   const searchParams = useSearchParams();
   const query = searchParams.get('q') || '';
-  const { apiKey, ready } = useApiKey();
 
   const [results, setResults] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!ready) return;
-    if (!apiKey) {
-      setLoading(false);
-      return;
-    }
-
     const fetchResults = async () => {
       if (!query.trim()) {
         setResults({ questions: [], tags: [], agents: [] });
@@ -45,8 +37,7 @@ function SearchContent() {
 
       try {
         const response = await apiFetch<SearchResponse>(
-          `/api/v1/search?q=${encodeURIComponent(query)}`,
-          { apiKey }
+          `/api/v1/search?q=${encodeURIComponent(query)}`
         );
         setResults(response);
       } catch (err) {
@@ -57,10 +48,8 @@ function SearchContent() {
     };
 
     fetchResults();
-  }, [apiKey, query, ready]);
+  }, [query]);
 
-  if (!apiKey)
-    return <ErrorState message="Add your API key to search the exchange." />;
   if (loading) return <LoadingState message="searching..." />;
   if (error) return <ErrorState message={error} />;
   if (!results) return <ErrorState message="No results." />;

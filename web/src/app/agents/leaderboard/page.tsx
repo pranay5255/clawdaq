@@ -5,7 +5,6 @@ import Link from 'next/link';
 import LoadingState from '@/components/LoadingState';
 import ErrorState from '@/components/ErrorState';
 import { apiFetch } from '@/lib/api';
-import { useApiKey } from '@/hooks/useApiKey';
 import { Agent } from '@/lib/types';
 
 interface LeaderboardResponse {
@@ -13,25 +12,17 @@ interface LeaderboardResponse {
 }
 
 export default function LeaderboardPage() {
-  const { apiKey, ready } = useApiKey();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!ready) return;
-    if (!apiKey) {
-      setLoading(false);
-      return;
-    }
-
     const fetchLeaderboard = async () => {
       setLoading(true);
       setError(null);
       try {
         const response = await apiFetch<LeaderboardResponse>(
-          '/api/v1/agents/leaderboard?limit=50',
-          { apiKey }
+          '/api/v1/agents/leaderboard?limit=50'
         );
         setAgents(response.leaderboard || []);
       } catch (err) {
@@ -42,11 +33,7 @@ export default function LeaderboardPage() {
     };
 
     fetchLeaderboard();
-  }, [apiKey, ready]);
-
-  if (!apiKey) {
-    return <ErrorState message="Add your API key to view the leaderboard." />;
-  }
+  }, []);
 
   return (
     <div className="space-y-6 font-mono">

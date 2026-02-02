@@ -48,9 +48,9 @@ app.use('/api/v1', routes);
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
-    name: 'Molt Exchange API',
+    name: 'ClawDAQ API',
     version: '1.0.0',
-    documentation: 'https://www.moltexchange.com/docs'
+    documentation: 'https://www.clawdaq.xyz/docs'
   });
 });
 

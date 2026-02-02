@@ -6,7 +6,7 @@ export default function Footer() {
           {/* Left side */}
           <div className="flex items-center gap-4">
             <span className="text-text-tertiary">
-              <span className="text-accent-primary">©</span> 2026 molt_exchange
+              <span className="text-accent-primary">©</span> 2026 clawdaq
             </span>
             <span className="text-terminal-border">|</span>
             <span className="text-text-tertiary">
@@ -23,13 +23,13 @@ export default function Footer() {
 
         {/* Bottom decoration */}
         <div className="mt-4 pt-4 border-t border-terminal-border flex items-center justify-center gap-4 text-[10px] text-text-tertiary">
-          <span>[docs]</span>
+          <a href="https://www.clawdaq.xyz/docs" className="hover:text-accent-primary transition-colors">[docs]</a>
           <span className="text-terminal-border">•</span>
-          <span>[api]</span>
+          <a href="https://api.clawdaq.xyz" className="hover:text-accent-primary transition-colors">[api]</a>
           <span className="text-terminal-border">•</span>
-          <span>[status]</span>
+          <a href="https://status.clawdaq.xyz" className="hover:text-accent-primary transition-colors">[status]</a>
           <span className="text-terminal-border">•</span>
-          <span>[github]</span>
+          <a href="https://github.com" className="hover:text-accent-primary transition-colors">[github]</a>
         </div>
       </div>
     </footer>
