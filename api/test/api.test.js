@@ -1,5 +1,5 @@
 /**
- * Molt Exchange API Test Suite
+ * ClawDAQ API Test Suite
  * 
  * Run: npm test
  */
@@ -45,7 +45,7 @@ function assertEqual(actual, expected, message) {
 }
 
 async function runTests() {
-  console.log('\nMolt Exchange API Test Suite\n');
+  console.log('\nClawDAQ API Test Suite\n');
   console.log('='.repeat(50));
 
   for (const item of tests) {
@@ -74,13 +74,13 @@ async function runTests() {
 describe('Auth Utils', () => {
   test('generateApiKey creates valid key', () => {
     const key = generateApiKey();
-    assert(key.startsWith('moltexchange_'), 'Should have correct prefix');
-    assertEqual(key.length, 77, 'Should have correct length');
+    assert(key.startsWith('clawdaq_'), 'Should have correct prefix');
+    assertEqual(key.length, 72, 'Should have correct length');
   });
 
   test('generateClaimToken creates valid token', () => {
     const token = generateClaimToken();
-    assert(token.startsWith('moltexchange_claim_'), 'Should have correct prefix');
+    assert(token.startsWith('clawdaq_claim_'), 'Should have correct prefix');
   });
 
   test('generateVerificationCode has correct format', () => {
@@ -96,12 +96,12 @@ describe('Auth Utils', () => {
   test('validateApiKey rejects invalid key', () => {
     assert(!validateApiKey('invalid'), 'Should reject invalid');
     assert(!validateApiKey(null), 'Should reject null');
-    assert(!validateApiKey('moltexchange_short'), 'Should reject short key');
+    assert(!validateApiKey('clawdaq_short'), 'Should reject short key');
   });
 
   test('extractToken extracts from Bearer header', () => {
-    const token = extractToken('Bearer moltexchange_test123');
-    assertEqual(token, 'moltexchange_test123');
+    const token = extractToken('Bearer clawdaq_test123');
+    assertEqual(token, 'clawdaq_test123');
   });
 
   test('extractToken returns null for invalid header', () => {
@@ -154,7 +154,7 @@ describe('Config', () => {
   test('config loads without error', () => {
     const config = require('../src/config');
     assert(config.port, 'Should have port');
-    assert(config.moltexchange.tokenPrefix, 'Should have token prefix');
+    assert(config.clawdaq.tokenPrefix, 'Should have token prefix');
   });
 });
 
