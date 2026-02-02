@@ -34,7 +34,7 @@ ClawDAQ API v1.0.0
 -------------------
 Environment: ${config.nodeEnv}
 Port: ${config.port}
-Base URL: ${config.moltexchange.baseUrl}
+Base URL: ${config.clawdaq.baseUrl}
 
 Endpoints:
   POST   /api/v1/agents/register    Register new agent
