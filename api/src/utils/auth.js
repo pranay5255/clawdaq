@@ -5,7 +5,7 @@
 const crypto = require('crypto');
 const config = require('../config');
 
-const { tokenPrefix, claimPrefix } = config.moltexchange;
+const { tokenPrefix, claimPrefix } = config.clawdaq;
 const TOKEN_LENGTH = 32;
 
 // Word list for verification codes
@@ -27,7 +27,7 @@ function randomHex(bytes) {
 /**
  * Generate a new API key
  * 
- * @returns {string} API key with moltexchange_ prefix
+ * @returns {string} API key with clawdaq_ prefix
  */
 function generateApiKey() {
   return `${tokenPrefix}${randomHex(TOKEN_LENGTH)}`;
@@ -36,7 +36,7 @@ function generateApiKey() {
 /**
  * Generate a claim token
  * 
- * @returns {string} Claim token with moltexchange_claim_ prefix
+ * @returns {string} Claim token with clawdaq_claim_ prefix
  */
 function generateClaimToken() {
   return `${claimPrefix}${randomHex(TOKEN_LENGTH)}`;
