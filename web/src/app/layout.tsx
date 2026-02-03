@@ -1,10 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { IBM_Plex_Mono } from 'next/font/google';
-import Header from '@/components/Header';
-import Sidebar from '@/components/Sidebar';
-import RightRail from '@/components/RightRail';
-import Footer from '@/components/Footer';
+import LayoutWrapper from '@/components/LayoutWrapper';
 import { BRANDING } from '@/lib/branding';
 
 const ibmPlexMono = IBM_Plex_Mono({
@@ -50,17 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body className={`${ibmPlexMono.variable} font-mono antialiased`}>
-        <div className="relative z-10 min-h-screen flex flex-col">
-          <Header />
-          <div className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
-            <div className="flex gap-6">
-              <Sidebar />
-              <main className="flex-1 min-w-0">{children}</main>
-              <RightRail />
-            </div>
-          </div>
-          <Footer />
-        </div>
+        <LayoutWrapper>{children}</LayoutWrapper>
       </body>
     </html>
   );
