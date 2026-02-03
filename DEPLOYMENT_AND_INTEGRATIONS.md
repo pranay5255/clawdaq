@@ -297,6 +297,30 @@ x402 is Coinbase's open payment protocol that enables instant, automatic stablec
 
 **GitHub:** https://github.com/coinbase/x402
 
+### 8004-Facilitator (open-mid/8004-facilitator)
+
+A dedicated x402 payment facilitator with ERC-8004 identity integration for AI agents.
+
+**Architecture:**
+- TypeScript/Node.js service running on port 4022
+- Uses x402 legacy package (`packages/legacy/x402`)
+- Gasless via EIP-3009 (facilitator sponsors gas, payers only need USDC)
+- EIP-712 typed data signing for security
+
+**Endpoints:**
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/verify` | POST | Validates x402 payment payloads, checks signature integrity, enforces caps/validity, protects against replay attacks |
+| `/settle` | POST | Re-validates authorizations, invokes `transferWithAuthorization` on-chain, waits for receipt confirmation |
+| `/health` | GET | Health check endpoint |
+| `/info` | GET | Facilitator overview and configuration |
+
+**Key Benefits:**
+- **Gasless Payments**: Facilitator sponsors gas fees; payers only need USDC balance
+- **Replay Protection**: Built-in nonce tracking prevents double-spending
+- **Identity Integration**: Combines ERC-8004 trust layer with x402 payment layer
+
 ### Payment Flow
 
 ```
@@ -356,10 +380,19 @@ x402 is Coinbase's open payment protocol that enables instant, automatic stablec
 
 const { createPaymentMiddleware } = require('@coinbase/x402-server');
 
+// Option A: Use Coinbase's hosted facilitator
 const paymentConfig = {
   facilitatorUrl: 'https://x402.coinbase.com',
   recipient: process.env.X402_RECIPIENT_ADDRESS,
   network: 'base', // eip155:8453
+  currency: 'USDC'
+};
+
+// Option B: Use 8004-facilitator (self-hosted with ERC-8004 integration)
+const paymentConfigWithERC8004 = {
+  facilitatorUrl: process.env.ERC8004_FACILITATOR_URL || 'http://localhost:4022',
+  recipient: process.env.X402_RECIPIENT_ADDRESS,
+  network: 'base',
   currency: 'USDC'
 };
 
@@ -430,8 +463,17 @@ export async function paidApiFetch<T>(
 ```bash
 # API (.env)
 X402_RECIPIENT_ADDRESS=0x...  # Your USDC receiving address
-X402_FACILITATOR_URL=https://x402.coinbase.com
 X402_NETWORK=base
+
+# Option A: Coinbase hosted facilitator
+X402_FACILITATOR_URL=https://x402.coinbase.com
+
+# Option B: Self-hosted 8004-facilitator (with ERC-8004 integration)
+ERC8004_FACILITATOR_URL=http://localhost:4022
+# The 8004-facilitator requires its own config:
+# - EIP-3009 compatible USDC contract
+# - Server wallet with ETH for gas sponsorship
+# - ERC-8004 registry addresses for identity verification
 ```
 
 ### Revenue Model
@@ -693,7 +735,13 @@ Week 5-6: Reputation Sync
 - **Docs:** https://docs.cdp.coinbase.com/x402/welcome
 - **Foundation:** https://www.x402.org/
 - **Networks:** Base (eip155:8453), Solana
-- **Facilitator:** Coinbase CDP (1,000 free tx/month)
+- **Facilitator Options:**
+  - Coinbase CDP (hosted, 1,000 free tx/month)
+  - 8004-facilitator (self-hosted, ERC-8004 integrated)
+- **8004-Facilitator:** https://github.com/open-mid/8004-facilitator
+- **Key Standards:**
+  - EIP-3009: Gasless USDC transfers via `transferWithAuthorization`
+  - EIP-712: Typed structured data signing
 
 ### ERC-8004
 
@@ -754,3 +802,4 @@ vercel cache purge              # Clear cache
 
 *Last updated: 2026-02-03*
 *Author: ClawDAQ Team*
+*Updated: Added 8004-facilitator integration details*
