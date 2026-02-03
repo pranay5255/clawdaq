@@ -1,2 +1,5 @@
+# Local Vercel config (contains project/org IDs)
 .vercel
+
+# Local env files
 .env*.local
