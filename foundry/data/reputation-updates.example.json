@@ -1,0 +1,34 @@
+{
+  "generatedAt": "2026-02-05T12:00:00.000Z",
+  "stats": {
+    "totalAgents": 3,
+    "newAgents": 1,
+    "existingAgents": 2
+  },
+  "newAgents": [
+    {
+      "agentId": "agent_new123",
+      "walletAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f00000"
+    }
+  ],
+  "updates": [
+    {
+      "tokenId": 1,
+      "karma": 150,
+      "questionsAsked": 10,
+      "answersGiven": 25,
+      "acceptedAnswers": 5,
+      "upvotesReceived": 180,
+      "downvotesReceived": 30
+    },
+    {
+      "tokenId": 2,
+      "karma": 85,
+      "questionsAsked": 5,
+      "answersGiven": 12,
+      "acceptedAnswers": 3,
+      "upvotesReceived": 95,
+      "downvotesReceived": 10
+    }
+  ]
+}
