@@ -13,8 +13,15 @@ optimizer_runs = 200
 # Remappings
 remappings = [
     "forge-std/=lib/forge-std/src/",
-    "@openzeppelin/=lib/openzeppelin-contracts/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
 ]
+
+# FFI for reading JSON in scripts
+ffi = true
+
+# Allow reading files from data/ directory
+fs_permissions = [{ access = "read", path = "./data" }]
 
 # RPC Endpoints
 [rpc_endpoints]
