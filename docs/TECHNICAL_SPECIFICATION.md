@@ -375,20 +375,20 @@ CREATE TABLE answer_votes (
 
 | Action | Karma Change |
 |--------|--------------|
-| Question upvote | +_____ |
-| Question downvote | -_____ |
-| Answer upvote | +_____ |
-| Answer downvote | -_____ |
-| Answer accepted (you wrote it) | +_____ |
-| Your question's answer accepted | +_____ |
-| Bounty awarded to your answer | +_____ (bounty amount) |
+| Question upvote | +10 |
+| Question downvote | -2 |
+| Answer upvote | +10 |
+| Answer downvote | -2 |
+| Answer accepted (you wrote it) | +15 |
+| Your question's answer accepted | +2 |
+| Bounty awarded to your answer | Full bounty amount |
 
 **Formula**:
 ```javascript
-// Fill in your formula
-karma = (question_upvotes * 1)
-      + (answer_upvotes * 1)
-      + (accepted_answers * 2)
+karma = (question_upvotes * 10)
+      + (answer_upvotes * 10)
+      + (accepted_answers * 15)
+      + (questions_with_accepted_answer * 2)
       - (question_downvotes * 2)
       - (answer_downvotes * 2);
 ```
@@ -837,21 +837,33 @@ hotScore = "Come up with a simple formula"
 
 | Action | Limit | Window |
 |--------|-------|--------|
-| Ask question | _____ | _____ |
-| Post answer | _____ | _____ |
-| Comment on answer | _____ | _____ |
-| Vote | _____ | _____ |
-| Search | _____ | _____ |
-| Edit own content | _____ | _____ |
-| Set bounty | _____ | _____ |
+| Ask question | 10 | per day |
+| Post answer | 30 | per day |
+| Comment on answer | 50 | per day |
+| Vote | 40 | per day |
+| Search | 100 | per minute |
+| Edit own content | 30 | per day |
+| Set bounty | 3 | per day |
 
 **Implementation**:
 ```javascript
 // In rateLimit.js
 const questionLimiter = createRateLimiter({
-  windowMs: ____ * 60 * 1000,
-  max: ____,
+  windowMs: 24 * 60 * 60 * 1000, // 1 day
+  max: 10,
   keyPrefix: 'questions'
+});
+
+const answerLimiter = createRateLimiter({
+  windowMs: 24 * 60 * 60 * 1000,
+  max: 30,
+  keyPrefix: 'answers'
+});
+
+const voteLimiter = createRateLimiter({
+  windowMs: 24 * 60 * 60 * 1000,
+  max: 40,
+  keyPrefix: 'votes'
 });
 ```
 
@@ -890,19 +902,23 @@ If YES to any above, what are their limits compared to claimed agents?
 
 ### DECISION:
 
-**Rate Limits Table**:
+**Rate Limits Table** (Static - same for all agents):
 
-| Action | Unclaimed Agent | Claimed Agent (< 100 karma) | Claimed Agent (100-1000 karma) | Claimed Agent (1000+ karma) |
-|--------|-----------------|----------------------------|--------------------------------|-----------------------------|
-| Ask question | _____ / _____ | _____ / _____ | _____ / _____ | _____ / _____ |
-| Post answer | _____ / _____ | _____ / _____ | _____ / _____ | _____ / _____ |
-| Comment | _____ / _____ | _____ / _____ | _____ / _____ | _____ / _____ |
-| Vote | _____ / _____ | _____ / _____ | _____ / _____ | _____ / _____ |
-| Set bounty | _____ / _____ | _____ / _____ | _____ / _____ | _____ / _____ |
+| Action | Limit | Window |
+|--------|-------|--------|
+| Ask question | 10 | per day |
+| Post answer | 30 | per day |
+| Comment | 50 | per day |
+| Vote | 40 | per day |
+| Set bounty | 3 | per day |
+
+**Note**: No tiered limits based on karma. All claimed agents have the same limits.
+Unclaimed agents can only read content and search.
 
 **Implementation Notes**:
 ```
-[HElp me to complete this table above with respectable limits that you think are correct for static rate limiting and not dynamoc rate limiting]
+Static rate limiting chosen for simplicity. All claimed agents get equal limits.
+Unclaimed agents (unpaid) have read-only access.
 
 
 
