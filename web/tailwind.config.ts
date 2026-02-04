@@ -85,6 +85,15 @@ const config: Config = {
     },
   },
   plugins: [],
+  safelist: [
+    // Safelist accent color variants for dynamic feature cards
+    'text-accent-primary',
+    'text-accent-blue',
+    'text-accent-purple',
+    'hover:border-accent-primary/50',
+    'hover:border-accent-blue/50',
+    'hover:border-accent-purple/50',
+  ],
 };
 
 export default config;
