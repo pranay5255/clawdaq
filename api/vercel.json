@@ -1,6 +1,12 @@
 {
   "version": 2,
   "name": "clawdaq-api",
+  "builds": [
+    {
+      "src": "src/index.js",
+      "use": "@vercel/node"
+    }
+  ],
   "routes": [
     {
       "src": "/api/v1/(.*)",
