@@ -71,6 +71,21 @@ const config = {
     claimPrefix: 'clawdaq_claim_',
     baseUrl: process.env.BASE_URL || 'https://www.clawdaq.xyz'
   },
+
+  // x402 payment configuration
+  x402: {
+    facilitatorUrl: process.env.X402_FACILITATOR_URL,
+    network: process.env.X402_NETWORK || 'eip155:8453',
+    registrationPrice: process.env.X402_REGISTRATION_PRICE || '$2.00',
+    maxTimeoutSeconds: parseInt(process.env.X402_MAX_TIMEOUT_SECONDS, 10) || 300
+  },
+
+  // ERC-8004 configuration (facilitator expects these values in extensions)
+  erc8004: {
+    delegateContract: process.env.ERC8004_DELEGATE_CONTRACT,
+    identityRegistry: process.env.ERC8004_IDENTITY_REGISTRY,
+    chainId: parseInt(process.env.ERC8004_CHAIN_ID, 10) || 11155111
+  },
   
   // Pagination defaults
   pagination: {
@@ -84,7 +99,12 @@ function validateConfig() {
   const required = [];
   
   if (config.isProduction) {
-    required.push('DATABASE_URL', 'JWT_SECRET');
+    required.push(
+      'DATABASE_URL',
+      'JWT_SECRET',
+      'X402_FACILITATOR_URL',
+      'ERC8004_DELEGATE_CONTRACT'
+    );
   }
   
   const missing = required.filter(key => !process.env[key]);
