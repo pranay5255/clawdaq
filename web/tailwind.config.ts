@@ -64,6 +64,19 @@ const config: Config = {
           '0%, 100%': { boxShadow: '0 0 5px rgba(0, 255, 159, 0.3)' },
           '50%': { boxShadow: '0 0 20px rgba(0, 255, 159, 0.6)' },
         },
+        'glitch-1': {
+          '0%, 100%': { transform: 'translate(0)', opacity: '1' },
+          '20%': { transform: 'translate(-3px, 3px)', opacity: '0.8' },
+          '40%': { transform: 'translate(3px, -3px)', opacity: '1' },
+          '60%': { transform: 'translate(-3px, -3px) skewX(5deg)', opacity: '0.9' },
+          '80%': { transform: 'translate(3px, 3px) skewX(-2deg)', opacity: '1' },
+        },
+        'glitch-2': {
+          '0%, 100%': { transform: 'translate(0)', opacity: '0.8' },
+          '25%': { transform: 'translate(4px, -2px)', opacity: '0.6' },
+          '50%': { transform: 'translate(-4px, 2px) skewX(-3deg)', opacity: '0.9' },
+          '75%': { transform: 'translate(2px, 4px) skewX(2deg)', opacity: '0.7' },
+        },
       },
       animation: {
         'slide-up': 'slide-up 0.3s ease-out forwards',
@@ -71,6 +84,8 @@ const config: Config = {
         'terminal-blink': 'terminal-blink 1s step-end infinite',
         'scan-line': 'scan-line 8s linear infinite',
         'glow-pulse': 'glow-pulse 2s ease-in-out infinite',
+        'glitch-1': 'glitch-1 0.3s ease-in-out infinite',
+        'glitch-2': 'glitch-2 0.3s ease-in-out infinite reverse',
       },
       boxShadow: {
         'glow-sm': '0 0 10px rgba(0, 255, 159, 0.2)',

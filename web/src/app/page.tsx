@@ -1,9 +1,180 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { BRANDING } from '@/lib/branding';
+
+// Particle Network Animation Component
+interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  radius: number;
+  color: string;
+}
+
+function ParticleNetwork() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const particlesRef = useRef<Particle[]>([]);
+  const mouseRef = useRef({ x: 0, y: 0, active: false });
+  const animationRef = useRef<number>();
+  const prefersReducedMotion = useRef(false);
+
+  const colors = ['#00ff9f', '#00bfff', '#a78bfa', '#00d4aa'];
+
+  const initParticles = useCallback((width: number, height: number) => {
+    const particleCount = Math.floor((width * height) / 15000);
+    const particles: Particle[] = [];
+
+    for (let i = 0; i < particleCount; i++) {
+      particles.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: (Math.random() - 0.5) * 0.5,
+        radius: Math.random() * 2 + 1,
+        color: colors[Math.floor(Math.random() * colors.length)],
+      });
+    }
+    return particles;
+  }, []);
+
+  useEffect(() => {
+    // Check for reduced motion preference
+    prefersReducedMotion.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      particlesRef.current = initParticles(canvas.width, canvas.height);
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      mouseRef.current = { x: e.clientX, y: e.clientY, active: true };
+    };
+
+    const handleMouseLeave = () => {
+      mouseRef.current.active = false;
+    };
+
+    resize();
+    window.addEventListener('resize', resize);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseleave', handleMouseLeave);
+
+    const animate = () => {
+      if (!ctx || !canvas) return;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const particles = particlesRef.current;
+      const mouse = mouseRef.current;
+
+      // Update and draw particles
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+
+        // Move particles (skip movement if reduced motion preferred)
+        if (!prefersReducedMotion.current) {
+          p.x += p.vx;
+          p.y += p.vy;
+        }
+
+        // Bounce off edges
+        if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+        if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+
+        // Mouse attraction
+        if (mouse.active) {
+          const dx = mouse.x - p.x;
+          const dy = mouse.y - p.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 200) {
+            const force = (200 - dist) / 200;
+            p.vx += (dx / dist) * force * 0.02;
+            p.vy += (dy / dist) * force * 0.02;
+          }
+        }
+
+        // Limit velocity
+        const maxSpeed = 1.5;
+        const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+        if (speed > maxSpeed) {
+          p.vx = (p.vx / speed) * maxSpeed;
+          p.vy = (p.vy / speed) * maxSpeed;
+        }
+
+        // Draw particle
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.fill();
+
+        // Connect nearby particles
+        for (let j = i + 1; j < particles.length; j++) {
+          const p2 = particles[j];
+          const dx = p.x - p2.x;
+          const dy = p.y - p2.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist < 120) {
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = `rgba(0, 255, 159, ${0.15 * (1 - dist / 120)})`;
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+          }
+        }
+
+        // Connect to mouse
+        if (mouse.active) {
+          const dx = p.x - mouse.x;
+          const dy = p.y - mouse.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist < 150) {
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(mouse.x, mouse.y);
+            ctx.strokeStyle = `rgba(0, 191, 255, ${0.3 * (1 - dist / 150)})`;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
+        }
+      }
+
+      animationRef.current = requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    return () => {
+      window.removeEventListener('resize', resize);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseleave', handleMouseLeave);
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [initParticles]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="absolute inset-0 pointer-events-none z-0"
+      style={{ opacity: 0.6 }}
+    />
+  );
+}
 
 // SVG Icons (Lucide-style)
 const RobotIcon = () => (
@@ -78,6 +249,9 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden bg-terminal-bg">
+      {/* Particle Network Animation */}
+      <ParticleNetwork />
+
       {/* Animated HUD Grid Background */}
       <div className="absolute inset-0 pointer-events-none">
         {/* Primary grid */}
@@ -153,11 +327,16 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Title */}
-            <h1 className="text-5xl sm:text-7xl font-bold tracking-tight">
+            {/* Title with Glitch Effect */}
+            <h1 className="text-5xl sm:text-7xl font-bold tracking-tight group cursor-default">
               <span className="text-accent-primary">&gt;</span>
-              <span className="text-text-primary"> Claw</span>
-              <span className="text-accent-primary">DAQ</span>
+              <span className="relative inline-block">
+                <span className="text-text-primary group-hover:opacity-0 transition-opacity duration-100"> Claw</span>
+                <span className="text-accent-primary group-hover:opacity-0 transition-opacity duration-100">DAQ</span>
+                {/* Glitch layers */}
+                <span className="absolute inset-0 text-accent-primary opacity-0 group-hover:opacity-100 group-hover:animate-glitch-1 transition-opacity" aria-hidden="true"> ClawDAQ</span>
+                <span className="absolute inset-0 text-accent-blue opacity-0 group-hover:opacity-100 group-hover:animate-glitch-2 transition-opacity" aria-hidden="true"> ClawDAQ</span>
+              </span>
             </h1>
 
             {/* Tagline */}
