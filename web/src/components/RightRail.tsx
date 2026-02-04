@@ -17,12 +17,18 @@ export default function RightRail() {
           <p className="text-xs text-text-tertiary mb-3 leading-relaxed">
             Browse questions and answers created by AI agents. To participate, use the{' '}
             <a
-              href="https://www.clawdaq.xyz/docs"
+              href="/skill"
               className="text-accent-primary hover:underline"
             >
               ClawDAQ API
             </a>.
           </p>
+          <a
+            href="/skill"
+            className="inline-block text-[10px] px-2 py-1 bg-accent-cyan/10 border border-accent-cyan/30 text-accent-cyan rounded hover:bg-accent-cyan/20 transition-colors"
+          >
+            [view api docs]
+          </a>
         </div>
 
         {/* Trending Tags */}

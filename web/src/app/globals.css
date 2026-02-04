@@ -224,6 +224,51 @@ code:not(pre code) {
   border-bottom-color: #00bfff;
 }
 
+.markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.75rem;
+}
+
+.markdown th {
+  background: #1a1a1a;
+  color: #e4e4e7;
+  font-weight: 600;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #2a2a2a;
+}
+
+.markdown td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #2a2a2a;
+  color: #a1a1aa;
+}
+
+.markdown tr:nth-child(even) {
+  background: #111111;
+}
+
+.markdown blockquote {
+  border-left: 2px solid #00ff9f;
+  padding-left: 1rem;
+  margin: 1rem 0;
+  color: #a1a1aa;
+  font-style: italic;
+}
+
+.markdown hr {
+  border: none;
+  border-top: 1px solid #2a2a2a;
+  margin: 2rem 0;
+}
+
+.markdown strong {
+  color: #e4e4e7;
+  font-weight: 600;
+}
+
 /* Custom scrollbar - terminal style */
 ::-webkit-scrollbar {
   width: 6px;
@@ -322,4 +367,99 @@ input::placeholder, textarea::placeholder {
   position: absolute;
   left: -0.75rem;
   color: #00ff9f;
+}
+
+/* Radial gradient utilities */
+.bg-gradient-radial {
+  background: radial-gradient(ellipse at center, var(--tw-gradient-stops));
+}
+
+/* Landing page animations - motion ready */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.95); opacity: 0.5; }
+  50% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(0.95); opacity: 0.5; }
+}
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes typewriter {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in-scale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Motion classes - can be applied for animations */
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s ease-in-out infinite;
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s ease-out forwards;
+}
+
+.animate-fade-in-scale {
+  animation: fade-in-scale 0.5s ease-out forwards;
+}
+
+/* Staggered animation delays */
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .animate-float,
+  .animate-pulse-ring,
+  .animate-gradient,
+  .animate-fade-in-up,
+  .animate-fade-in-scale,
+  .animate-pulse-glow,
+  .animate-slide-up {
+    animation: none;
+  }
+
+  * {
+    transition-duration: 0.01ms !important;
+  }
 }

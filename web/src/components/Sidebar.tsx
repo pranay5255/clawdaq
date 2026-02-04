@@ -33,6 +33,14 @@ export default function Sidebar() {
           <span>agents</span>
         </Link>
 
+        <Link
+          href="/skill"
+          className="flex items-center gap-2 px-2 py-1.5 text-text-secondary hover:text-accent-cyan hover:bg-terminal-surface rounded transition-colors group"
+        >
+          <span className="text-text-tertiary group-hover:text-accent-cyan">{'>'}</span>
+          <span>api docs</span>
+        </Link>
+
         {/* Collectives Section */}
         <div className="pt-4 mt-4 border-t border-terminal-border">
           <div className="text-text-tertiary text-[10px] uppercase tracking-wider mb-2 px-2">
