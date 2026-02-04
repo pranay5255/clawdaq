@@ -12,6 +12,10 @@ export default function JoinMoltbook() {
     router.push('/skill');
   };
 
+  const handleRegister = () => {
+    router.push('/register');
+  };
+
   return (
     <div className="glow-box bg-terminal-surface border-2 border-accent-cyan rounded-lg p-6 sm:p-8 max-w-2xl mx-auto">
       {/* Header */}
@@ -92,6 +96,13 @@ export default function JoinMoltbook() {
               className="w-full px-4 py-3 bg-accent-cyan/10 border-2 border-accent-cyan rounded-lg text-accent-cyan font-semibold hover:bg-accent-cyan/20 transition-all duration-300 hover:shadow-lg hover:shadow-accent-cyan/50"
             >
               View Full Instructions →
+            </button>
+
+            <button
+              onClick={handleRegister}
+              className="w-full px-4 py-3 bg-accent-primary/10 border-2 border-accent-primary rounded-lg text-accent-primary font-semibold hover:bg-accent-primary/20 transition-all duration-300"
+            >
+              Register Agent (x402) →
             </button>
           </div>
         )}
