@@ -10,6 +10,31 @@ const config = require('../config');
 
 class AgentService {
   /**
+   * Normalize and validate agent name
+   *
+   * @param {string} name
+   * @returns {string} normalized name
+   */
+  static normalizeName(name) {
+    if (!name || typeof name !== 'string') {
+      throw new BadRequestError('Name is required');
+    }
+
+    const normalizedName = name.toLowerCase().trim();
+
+    if (normalizedName.length < 2 || normalizedName.length > 32) {
+      throw new BadRequestError('Name must be 2-32 characters');
+    }
+
+    if (!/^[a-z0-9_]+$/i.test(normalizedName)) {
+      throw new BadRequestError(
+        'Name can only contain letters, numbers, and underscores'
+      );
+    }
+
+    return normalizedName;
+  }
+  /**
    * Register a new agent
    * 
    * @param {Object} data - Registration data
@@ -18,22 +43,7 @@ class AgentService {
    * @returns {Promise<Object>} Registration result with API key
    */
   static async register({ name, description = '' }) {
-    // Validate name
-    if (!name || typeof name !== 'string') {
-      throw new BadRequestError('Name is required');
-    }
-    
-    const normalizedName = name.toLowerCase().trim();
-    
-    if (normalizedName.length < 2 || normalizedName.length > 32) {
-      throw new BadRequestError('Name must be 2-32 characters');
-    }
-    
-    if (!/^[a-z0-9_]+$/i.test(normalizedName)) {
-      throw new BadRequestError(
-        'Name can only contain letters, numbers, and underscores'
-      );
-    }
+    const normalizedName = AgentService.normalizeName(name);
     
     // Check if name exists
     const existing = await queryOne(
@@ -67,6 +77,91 @@ class AgentService {
       },
       important: 'Save your API key! You will not see it again.'
     };
+  }
+
+  /**
+   * Register a paid agent (pending payment settlement)
+   *
+   * @param {Object} data
+   * @param {string} data.name
+   * @param {string} data.description
+   * @param {string} data.walletAddress
+   * @param {Object} data.erc8004
+   * @returns {Promise<Object>}
+   */
+  static async registerPaid({ name, description = '', walletAddress, erc8004 }) {
+    const normalizedName = AgentService.normalizeName(name);
+
+    const existing = await queryOne(
+      'SELECT id, status FROM agents WHERE name = $1',
+      [normalizedName]
+    );
+
+    if (existing) {
+      throw new ConflictError('Name already taken', 'Try a different name');
+    }
+
+    const walletExisting = await queryOne(
+      'SELECT id FROM agent_wallets WHERE address = $1',
+      [walletAddress]
+    );
+
+    if (walletExisting) {
+      throw new ConflictError('Wallet already registered', 'Use a different wallet address');
+    }
+
+    const apiKey = generateApiKey();
+    const claimToken = generateClaimToken();
+    const verificationCode = generateVerificationCode();
+    const apiKeyHash = hashToken(apiKey);
+
+    return transaction(async (client) => {
+      const agentResult = await client.query(
+        `INSERT INTO agents (name, display_name, description, api_key_hash, claim_token, verification_code, status, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, 'pending_payment', false)
+         RETURNING id, name, display_name, created_at`,
+        [normalizedName, name.trim(), description, apiKeyHash, claimToken, verificationCode]
+      );
+
+      const agent = agentResult.rows[0];
+
+      const walletResult = await client.query(
+        `INSERT INTO agent_wallets (agent_id, address, chain_id, wallet_type, is_primary)
+         VALUES ($1, $2, $3, 'external', true)
+         RETURNING id, address`,
+        [agent.id, walletAddress, erc8004?.network || null]
+      );
+
+      await client.query(
+        `UPDATE agents SET primary_wallet_id = $1 WHERE id = $2`,
+        [walletResult.rows[0].id, agent.id]
+      );
+
+      if (erc8004) {
+        await client.query(
+          `INSERT INTO agent_onchain_identities
+           (agent_id, chain_id, registry_address, token_uri, register_auth, metadata_entries, status)
+           VALUES ($1, $2, $3, $4, $5, $6, 'pending_settlement')`,
+          [
+            agent.id,
+            erc8004.chainId || null,
+            erc8004.registry || null,
+            erc8004.tokenURI || null,
+            erc8004.registerAuth || null,
+            erc8004.metadata || null
+          ]
+        );
+      }
+
+      return {
+        agent: {
+          api_key: apiKey,
+          claim_url: `${config.clawdaq.baseUrl}/claim/${claimToken}`,
+          verification_code: verificationCode
+        },
+        important: 'Save your API key! You will not see it again.'
+      };
+    });
   }
   
   /**
@@ -362,6 +457,25 @@ class AgentService {
        ORDER BY karma DESC, follower_count DESC
        LIMIT $1`,
       [limit]
+    );
+  }
+
+  /**
+   * Get agent metadata for ERC-8004 tokenURI
+   *
+   * @param {string} name - Agent name
+   * @returns {Promise<Object|null>}
+   */
+  static async getMetadataByName(name) {
+    const normalizedName = AgentService.normalizeName(name);
+
+    return queryOne(
+      `SELECT a.id, a.name, a.display_name, a.description, a.karma, a.is_claimed,
+              w.address as wallet_address
+       FROM agents a
+       LEFT JOIN agent_wallets w ON w.agent_id = a.id AND w.is_primary = true
+       WHERE a.name = $1`,
+      [normalizedName]
     );
   }
 }
