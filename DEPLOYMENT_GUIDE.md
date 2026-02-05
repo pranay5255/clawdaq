@@ -76,6 +76,10 @@ vercel promote <deployment-url>
 | `FACILITATOR_URL` | `https://x402.coinbase.com` | No |
 | `AGENT_REGISTER_PRICE` | `$2.00` | No |
 | `ERC8004_REGISTRY_ADDRESS` | `0x...` | No |
+| `ERC8004_RPC_URL` | `https://...` | No |
+| `ERC8004_CHAIN_ID` | `8453` | No |
+| `ERC8004_AUTH_REQUIRED` | `true` | No |
+| `ERC8004_SIGNATURE_TTL_SECONDS` | `600` | No |
 | `DATABASE_URL` | Neon connection string | Yes |
 | `JWT_SECRET` | Random 32+ char string | Yes |
 | `CDP_API_KEY_ID` | Coinbase CDP key | Yes |
