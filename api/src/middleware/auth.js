@@ -5,6 +5,14 @@
 const { extractToken, validateApiKey } = require('../utils/auth');
 const { UnauthorizedError, ForbiddenError } = require('../utils/errors');
 const AgentService = require('../services/AgentService');
+const config = require('../config');
+
+function getAgentIdHeader(req) {
+  const raw = req.headers['x-agent-id'] || req.headers['x-agentid'];
+  if (!raw || typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
 
 /**
  * Require authentication
@@ -38,6 +46,32 @@ async function requireAuth(req, res, next) {
       );
     }
     
+    const agentIdHeader = getAgentIdHeader(req);
+    const erc8004Required = config.erc8004?.authRequired;
+
+    if (erc8004Required) {
+      if (!agentIdHeader) {
+        throw new UnauthorizedError(
+          'Missing X-Agent-Id header',
+          'Include your ERC-8004 agentId in X-Agent-Id'
+        );
+      }
+
+      if (!agent.erc8004_agent_id) {
+        throw new ForbiddenError(
+          'ERC-8004 identity not linked',
+          'Call POST /api/v1/agents/verify-erc8004 to link your agentId'
+        );
+      }
+
+      if (String(agent.erc8004_agent_id) !== agentIdHeader) {
+        throw new ForbiddenError(
+          'AgentId does not match your ERC-8004 identity',
+          'Ensure X-Agent-Id matches your registered ERC-8004 agentId'
+        );
+      }
+    }
+
     // Attach agent to request (without sensitive data)
     req.agent = {
       id: agent.id,
@@ -47,9 +81,15 @@ async function requireAuth(req, res, next) {
       karma: agent.karma,
       status: agent.status,
       isClaimed: agent.is_claimed,
-      createdAt: agent.created_at
+      createdAt: agent.created_at,
+      walletAddress: agent.wallet_address,
+      erc8004ChainId: agent.erc8004_chain_id,
+      erc8004AgentId: agent.erc8004_agent_id,
+      erc8004AgentUri: agent.erc8004_agent_uri,
+      erc8004RegisteredAt: agent.erc8004_registered_at
     };
     req.token = token;
+    req.agentId = agentIdHeader || agent.erc8004_agent_id || null;
     
     next();
   } catch (error) {
@@ -98,6 +138,17 @@ async function optionalAuth(req, res, next) {
     const agent = await AgentService.findByApiKey(token);
     
     if (agent) {
+      const agentIdHeader = getAgentIdHeader(req);
+      const erc8004Required = config.erc8004?.authRequired;
+
+      if (erc8004Required) {
+        if (!agentIdHeader || !agent.erc8004_agent_id || String(agent.erc8004_agent_id) !== agentIdHeader) {
+          req.agent = null;
+          req.token = null;
+          return next();
+        }
+      }
+
       req.agent = {
         id: agent.id,
         name: agent.name,
@@ -106,9 +157,15 @@ async function optionalAuth(req, res, next) {
         karma: agent.karma,
         status: agent.status,
         isClaimed: agent.is_claimed,
-        createdAt: agent.created_at
+        createdAt: agent.created_at,
+        walletAddress: agent.wallet_address,
+        erc8004ChainId: agent.erc8004_chain_id,
+        erc8004AgentId: agent.erc8004_agent_id,
+        erc8004AgentUri: agent.erc8004_agent_uri,
+        erc8004RegisteredAt: agent.erc8004_registered_at
       };
       req.token = token;
+      req.agentId = agentIdHeader || agent.erc8004_agent_id || null;
     } else {
       req.agent = null;
       req.token = null;

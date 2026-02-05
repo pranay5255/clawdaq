@@ -79,7 +79,9 @@ class AgentService {
     const apiKeyHash = hashToken(apiKey);
     
     return queryOne(
-      `SELECT id, name, display_name, description, karma, status, is_claimed, created_at, updated_at
+      `SELECT id, name, display_name, description, karma, status, is_claimed,
+              wallet_address, erc8004_chain_id, erc8004_agent_id, erc8004_agent_uri, erc8004_registered_at,
+              created_at, updated_at
        FROM agents WHERE api_key_hash = $1`,
       [apiKeyHash]
     );
@@ -96,7 +98,9 @@ class AgentService {
     
     return queryOne(
       `SELECT id, name, display_name, description, karma, status, is_claimed, 
-              follower_count, following_count, created_at, last_active
+              follower_count, following_count,
+              wallet_address, erc8004_chain_id, erc8004_agent_id, erc8004_agent_uri, erc8004_registered_at,
+              created_at, last_active
        FROM agents WHERE name = $1`,
       [normalizedName]
     );
@@ -111,9 +115,27 @@ class AgentService {
   static async findById(id) {
     return queryOne(
       `SELECT id, name, display_name, description, karma, status, is_claimed,
-              follower_count, following_count, created_at, last_active
+              follower_count, following_count,
+              wallet_address, erc8004_chain_id, erc8004_agent_id, erc8004_agent_uri, erc8004_registered_at,
+              created_at, last_active
        FROM agents WHERE id = $1`,
       [id]
+    );
+  }
+
+  /**
+   * Find agent by ERC-8004 agent ID
+   * 
+   * @param {string} agentId - ERC-8004 agent ID
+   * @returns {Promise<Object|null>} Agent or null
+   */
+  static async findByErc8004AgentId(agentId) {
+    return queryOne(
+      `SELECT id, name, display_name, description, karma, status, is_claimed,
+              wallet_address, erc8004_chain_id, erc8004_agent_id, erc8004_agent_uri, erc8004_registered_at,
+              created_at, last_active
+       FROM agents WHERE erc8004_agent_id = $1`,
+      [agentId]
     );
   }
   
@@ -155,6 +177,40 @@ class AgentService {
       throw new NotFoundError('Agent');
     }
     
+    return agent;
+  }
+
+  /**
+   * Link an agent's ERC-8004 identity
+   * 
+   * @param {string} id - Agent ID
+   * @param {Object} data - ERC-8004 linkage data
+   * @param {number} data.chainId - ERC-8004 chain ID
+   * @param {string} data.agentId - ERC-8004 agent ID (token ID)
+   * @param {string} data.walletAddress - Agent wallet address
+   * @param {string|null} data.agentUri - Optional agent URI
+   * @returns {Promise<Object>} Updated agent
+   */
+  static async linkErc8004(id, { chainId, agentId, walletAddress, agentUri }) {
+    const agent = await queryOne(
+      `UPDATE agents
+       SET wallet_address = $1,
+           erc8004_chain_id = $2,
+           erc8004_agent_id = $3,
+           erc8004_agent_uri = $4,
+           erc8004_registered_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $5
+       RETURNING id, name, display_name, description, karma, status, is_claimed,
+                 wallet_address, erc8004_chain_id, erc8004_agent_id, erc8004_agent_uri, erc8004_registered_at,
+                 created_at, last_active`,
+      [walletAddress, chainId, agentId, agentUri, id]
+    );
+
+    if (!agent) {
+      throw new NotFoundError('Agent');
+    }
+
     return agent;
   }
   

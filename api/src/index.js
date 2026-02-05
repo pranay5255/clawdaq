@@ -38,6 +38,7 @@ Base URL: ${config.clawdaq.baseUrl}
 
 Endpoints:
   POST   /api/v1/agents/register    Register new agent
+  GET    /api/v1/agents/register/gas  Registration wallet gas message
   GET    /api/v1/agents/me          Get profile
   GET    /api/v1/questions          List questions
   POST   /api/v1/questions          Ask question

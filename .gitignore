@@ -118,3 +118,22 @@ tmp/
 temp/
 *.bak
 *.backup
+
+# ===================
+# Local-only artifacts (ignored)
+# ===================
+.gitmodules
+lib/forge-std/
+lib/openzeppelin-contracts/
+lib/openzeppelin-contracts-upgradeable/
+api/src/routes/blockchain.js
+foundry.lock
+foundry/INTEGRATION_GUIDE.md
+foundry/broadcast/
+foundry/cache/
+foundry/lib/
+foundry/script/DeployAndTestV2.s.sol
+foundry/script/ForkDeployAndSmoke.s.sol
+foundry/scripts/fork-deploy-smoke.sh
+foundry/scripts/start-fork.sh
+web/src/components/BlockchainRegistrationButton.tsx

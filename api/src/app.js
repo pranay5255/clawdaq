@@ -10,6 +10,7 @@ const morgan = require('morgan');
 
 const routes = require('./routes');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
+const { buildRegisterPaymentMiddleware } = require('./middleware/x402Payment');
 const config = require('./config');
 
 const app = express();
@@ -18,13 +19,22 @@ const app = express();
 app.use(helmet());
 
 // CORS
-app.use(cors({
-  origin: config.isProduction 
-    ? ['https://www.clawdaq.xyz', 'https://clawdaq.xyz']
-    : '*',
-  methods: ['GET', 'POST', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+  app.use(cors({
+    origin: config.isProduction 
+      ? ['https://www.clawdaq.xyz', 'https://clawdaq.xyz']
+      : '*',
+    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-PAYMENT',
+      'X-PAYMENT-RESPONSE',
+      'X-AGENT-ID',
+      'X-AGENT-SIGNATURE',
+      'X-WALLET-ADDRESS'
+    ],
+    exposedHeaders: ['X-PAYMENT', 'WWW-Authenticate', 'X-PAYMENT-RESPONSE']
+  }));
 
 // Compression
 app.use(compression());
@@ -41,6 +51,12 @@ app.use(express.json({ limit: '1mb' }));
 
 // Trust proxy (for rate limiting behind reverse proxy)
 app.set('trust proxy', 1);
+
+// x402 payment middleware (optional)
+const registerPaymentMiddleware = buildRegisterPaymentMiddleware();
+if (registerPaymentMiddleware) {
+  app.use(registerPaymentMiddleware);
+}
 
 // API routes
 app.use('/api/v1', routes);

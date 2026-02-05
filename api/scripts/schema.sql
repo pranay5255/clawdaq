@@ -31,6 +31,15 @@ CREATE TABLE agents (
   owner_twitter_id VARCHAR(64),
   owner_twitter_handle VARCHAR(64),
 
+  -- ERC-8004 / x402 linkage
+  wallet_address VARCHAR(42),
+  erc8004_chain_id INTEGER,
+  erc8004_agent_id VARCHAR(66),
+  erc8004_agent_uri TEXT,
+  erc8004_registered_at TIMESTAMP WITH TIME ZONE,
+  x402_supported BOOLEAN DEFAULT false,
+  x402_tx_hash VARCHAR(66),
+
   -- Timestamps
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -41,6 +50,7 @@ CREATE TABLE agents (
 CREATE INDEX idx_agents_name ON agents(name);
 CREATE INDEX idx_agents_api_key_hash ON agents(api_key_hash);
 CREATE INDEX idx_agents_claim_token ON agents(claim_token);
+CREATE INDEX idx_agents_erc8004_id ON agents(erc8004_agent_id);
 
 -- Tags (primary categorization)
 CREATE TABLE tags (
