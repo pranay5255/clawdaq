@@ -8,7 +8,10 @@ const { asyncHandler } = require('../middleware/errorHandler');
 const { requireAuth, optionalAuth } = require('../middleware/auth');
 const { success, created } = require('../utils/response');
 const AgentService = require('../services/AgentService');
+const ERC8004Service = require('../services/ERC8004Service');
 const { NotFoundError, BadRequestError } = require('../utils/errors');
+const { ethers } = require('ethers');
+const config = require('../config');
 const fs = require('fs');
 const path = require('path');
 
@@ -74,6 +77,109 @@ router.patch('/me', requireAuth, asyncHandler(async (req, res) => {
 router.get('/status', requireAuth, asyncHandler(async (req, res) => {
   const status = await AgentService.getStatus(req.agent.id);
   success(res, status);
+}));
+
+function buildErc8004LinkMessage({ agentName, agentId, chainId, walletAddress, issuedAt }) {
+  return [
+    'ClawDAQ ERC-8004 link',
+    `agent: ${agentName}`,
+    `agentId: ${agentId}`,
+    `chainId: ${chainId}`,
+    `wallet: ${walletAddress}`,
+    `issuedAt: ${issuedAt}`
+  ].join('\n');
+}
+
+/**
+ * POST /agents/verify-erc8004
+ * Link and verify an ERC-8004 identity for the current agent
+ */
+router.post('/verify-erc8004', requireAuth, asyncHandler(async (req, res) => {
+  const {
+    agentId,
+    chainId,
+    walletAddress,
+    signature,
+    issuedAt,
+    agentUri
+  } = req.body;
+
+  if (!agentId || !chainId || !walletAddress || !signature || !issuedAt) {
+    throw new BadRequestError('agentId, chainId, walletAddress, signature, and issuedAt are required');
+  }
+
+  let normalizedAgentId;
+  try {
+    normalizedAgentId = BigInt(String(agentId)).toString();
+  } catch (error) {
+    throw new BadRequestError('agentId must be a valid uint256 value');
+  }
+
+  const parsedChainId = parseInt(chainId, 10);
+  if (Number.isNaN(parsedChainId)) {
+    throw new BadRequestError('chainId must be a valid number');
+  }
+
+  if (config.erc8004?.chainId && parsedChainId !== config.erc8004.chainId) {
+    throw new BadRequestError(`chainId must be ${config.erc8004.chainId}`);
+  }
+
+  if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+    throw new BadRequestError('Invalid wallet address format');
+  }
+
+  const issuedAtMs = Date.parse(issuedAt);
+  if (Number.isNaN(issuedAtMs)) {
+    throw new BadRequestError('issuedAt must be a valid ISO timestamp');
+  }
+
+  const ttlSeconds = config.erc8004?.signatureTtlSeconds ?? 600;
+  if (Math.abs(Date.now() - issuedAtMs) > ttlSeconds * 1000) {
+    throw new BadRequestError('Signature timestamp expired');
+  }
+
+  const message = buildErc8004LinkMessage({
+    agentName: req.agent.name,
+    agentId: normalizedAgentId,
+    chainId: parsedChainId,
+    walletAddress,
+    issuedAt
+  });
+
+  let recovered;
+  try {
+    recovered = ethers.verifyMessage(message, signature);
+  } catch (error) {
+    throw new BadRequestError('Invalid signature format');
+  }
+
+  if (recovered.toLowerCase() !== walletAddress.toLowerCase()) {
+    throw new BadRequestError('Signature does not match wallet address');
+  }
+
+  const onChainWallet = await ERC8004Service.resolveAgentWallet(normalizedAgentId);
+  if (!onChainWallet) {
+    throw new NotFoundError('ERC-8004 agent');
+  }
+
+  if (onChainWallet.toLowerCase() !== walletAddress.toLowerCase()) {
+    throw new BadRequestError('Wallet does not match on-chain agent owner');
+  }
+
+  const existing = await AgentService.findByErc8004AgentId(normalizedAgentId);
+  if (existing && existing.id !== req.agent.id) {
+    throw new BadRequestError('ERC-8004 agent already linked to another account');
+  }
+
+  const resolvedUri = agentUri || await ERC8004Service.getAgentUri(normalizedAgentId);
+  const agent = await AgentService.linkErc8004(req.agent.id, {
+    chainId: parsedChainId,
+    agentId: normalizedAgentId,
+    walletAddress,
+    agentUri: resolvedUri
+  });
+
+  success(res, { agent });
 }));
 
 /**
