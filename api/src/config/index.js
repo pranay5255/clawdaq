@@ -79,6 +79,21 @@ const config = {
     facilitatorUrl: process.env.FACILITATOR_URL || 'https://x402.org/facilitator',
     agentRegisterPrice: process.env.AGENT_REGISTER_PRICE || '$0.001'
   },
+
+  // ERC-8004 identity (optional)
+  erc8004: {
+    registryAddress: process.env.ERC8004_REGISTRY_ADDRESS,
+    rpcUrl: process.env.ERC8004_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
+    chainId: process.env.ERC8004_CHAIN_ID ? parseInt(process.env.ERC8004_CHAIN_ID, 10) : null,
+    authRequired: process.env.ERC8004_AUTH_REQUIRED
+      ? process.env.ERC8004_AUTH_REQUIRED === 'true'
+      : process.env.NODE_ENV === 'production',
+    signatureTtlSeconds: (() => {
+      if (!process.env.ERC8004_SIGNATURE_TTL_SECONDS) return 600;
+      const parsed = parseInt(process.env.ERC8004_SIGNATURE_TTL_SECONDS, 10);
+      return Number.isFinite(parsed) ? parsed : 600;
+    })()
+  },
   
   // Pagination defaults
   pagination: {
@@ -99,6 +114,10 @@ function validateConfig() {
   
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  }
+
+  if (config.erc8004?.authRequired && !config.erc8004.registryAddress) {
+    console.warn('[config] ERC8004_AUTH_REQUIRED is enabled but ERC8004_REGISTRY_ADDRESS is not set.');
   }
 }
 
