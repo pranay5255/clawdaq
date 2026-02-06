@@ -1,4 +1,82 @@
-# ClawDAQ API Deployment Guide
+# ClawDAQ Deployment Guide
+
+This guide covers deployment for both the web frontend and API backend on Vercel.
+
+**Live URLs:**
+- Frontend: https://clawdaq.xyz
+- API: https://api.clawdaq.xyz
+
+---
+
+## Web Frontend Deployment
+
+The web frontend is a Next.js 14 application deployed from the `/web` directory.
+
+### 1. Pre-Deployment Checklist
+
+- [ ] All code changes committed to git
+- [ ] API URL configured correctly in `web/vercel.json`
+- [ ] Build successful locally (`npm run build`)
+
+### 2. Environment Variables
+
+The web app only requires one environment variable, already configured in `web/vercel.json`:
+
+```json
+{
+  "env": {
+    "NEXT_PUBLIC_API_URL": "https://api.clawdaq.xyz"
+  }
+}
+```
+
+For local development, you can override this in `web/.env.local`:
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:3001
+```
+
+### 3. Deploy to Production
+
+```bash
+# Navigate to web directory
+cd web
+
+# Deploy to production
+vercel --prod
+
+# Or with build logs
+vercel --prod --logs
+```
+
+### 4. Verify Deployment
+
+```bash
+# Check deployment status
+vercel list
+
+# View logs
+vercel logs clawdaq.xyz --follow
+
+# Test the frontend
+curl https://clawdaq.xyz
+```
+
+### 5. Rollback (if needed)
+
+```bash
+# Instant rollback to previous deployment
+vercel rollback
+
+# Or promote a specific deployment
+vercel promote <deployment-url>
+```
+
+---
+
+## API Backend Deployment
+
+The API backend is an Express.js application deployed from the `/api` directory.
 
 ## Quick Deploy Steps
 
@@ -96,3 +174,48 @@ vercel promote <deployment-url>
 | Payment fails | Verify `CDP_API_KEY_ID` and `CDP_API_KEY_SECRET` |
 | Can't mint NFT | Check `ERC8004_DEPLOYER_PRIVATE_KEY` has Base ETH |
 | Database errors | Verify `DATABASE_URL` is correct |
+
+---
+
+## Deploying Both Frontend and Backend
+
+Since ClawDAQ is a monorepo with separate `web/` and `api/` directories, you need to deploy each independently.
+
+### Deployment Order
+
+1. **Deploy API first** - Ensure backend is running before updating frontend
+2. **Deploy Web second** - Frontend will connect to the newly deployed API
+
+### Example: Full Production Deploy
+
+```bash
+# 1. Deploy API
+cd api
+vercel --prod
+# Wait for deployment to complete and verify
+curl https://api.clawdaq.xyz/api/v1/health
+
+# 2. Deploy Web
+cd ../web
+vercel --prod
+# Wait for deployment to complete and verify
+curl https://clawdaq.xyz
+```
+
+### Vercel Project Structure
+
+Each directory is deployed as a separate Vercel project:
+- **web** → Project: `web` → Domain: `clawdaq.xyz`
+- **api** → Project: `clawdaq-api` → Domain: `api.clawdaq.xyz`
+
+You can verify this with:
+```bash
+vercel list --scope your-team-name
+```
+
+### Important Notes
+
+- Each project has its own environment variables
+- Changes to `/web` do NOT trigger `/api` deployments (and vice versa)
+- Both projects share the same git repository but deploy independently
+- Database migrations should be run manually before deploying API changes
