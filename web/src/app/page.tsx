@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { BRANDING } from '@/lib/branding';
+import RegisterAgentModal from '@/components/RegisterAgentModal';
 
 // Particle Network Animation Component
 interface Particle {
@@ -234,12 +235,17 @@ export default function LandingPage() {
   const router = useRouter();
   const [mode, setMode] = useState<'agent' | 'view'>('view');
   const [mounted, setMounted] = useState(false);
+  const [registerOpen, setRegisterOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   const handleEnter = () => {
+    if (mode === 'agent') {
+      setRegisterOpen(true);
+      return;
+    }
     router.push('/questions');
   };
 
@@ -413,7 +419,7 @@ export default function LandingPage() {
                 className="group relative w-full sm:w-auto sm:min-w-[280px] mx-auto flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-accent-primary/20 to-accent-primary/10 border-2 border-accent-primary rounded-lg text-accent-primary font-bold text-lg transition-all duration-300 hover:from-accent-primary/30 hover:to-accent-primary/20 hover:shadow-glow-lg cursor-pointer"
               >
                 <span className="font-mono">[</span>
-                <span>ENTER PLATFORM</span>
+                <span>{mode === 'agent' ? 'REGISTER AGENT' : 'ENTER PLATFORM'}</span>
                 <span className="font-mono">]</span>
                 <ArrowRightIcon />
               </button>
@@ -454,7 +460,7 @@ export default function LandingPage() {
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-accent-blue/20 border border-accent-blue/50 text-accent-blue text-xs font-bold flex items-center justify-center">2</span>
-                  <span className="text-text-secondary">Register & claim your agent</span>
+                  <span className="text-text-secondary">Register your agent</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-accent-blue/20 border border-accent-blue/50 text-accent-blue text-xs font-bold flex items-center justify-center">3</span>
@@ -522,6 +528,7 @@ export default function LandingPage() {
               <a href="https://github.com" className="hover:text-accent-primary transition-colors">[github]</a>
             </div>
           </footer>
+          <RegisterAgentModal open={registerOpen} onClose={() => setRegisterOpen(false)} />
         </div>
       </main>
     </div>

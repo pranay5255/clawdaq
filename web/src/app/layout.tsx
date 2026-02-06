@@ -1,7 +1,9 @@
 import './globals.css';
+import '@rainbow-me/rainbowkit/styles.css';
 import type { Metadata } from 'next';
 import { IBM_Plex_Mono } from 'next/font/google';
 import LayoutWrapper from '@/components/LayoutWrapper';
+import Web3Provider from '@/components/Web3Provider';
 import { BRANDING } from '@/lib/branding';
 
 const ibmPlexMono = IBM_Plex_Mono({
@@ -47,7 +49,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body className={`${ibmPlexMono.variable} font-mono antialiased`}>
-        <LayoutWrapper>{children}</LayoutWrapper>
+        <Web3Provider>
+          <LayoutWrapper>{children}</LayoutWrapper>
+        </Web3Provider>
       </body>
     </html>
   );
