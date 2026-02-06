@@ -37,6 +37,12 @@ CREATE TABLE agents (
   erc8004_agent_id VARCHAR(66),
   erc8004_agent_uri TEXT,
   erc8004_registered_at TIMESTAMP WITH TIME ZONE,
+  payer_eoa VARCHAR(42),
+  agent0_chain_id INTEGER,
+  agent0_agent_id VARCHAR(66),
+  agent0_agent_uri TEXT,
+  agent0_metadata JSONB,
+  reputation_summary JSONB,
   x402_supported BOOLEAN DEFAULT false,
   x402_tx_hash VARCHAR(66),
 
@@ -51,6 +57,7 @@ CREATE INDEX idx_agents_name ON agents(name);
 CREATE INDEX idx_agents_api_key_hash ON agents(api_key_hash);
 CREATE INDEX idx_agents_claim_token ON agents(claim_token);
 CREATE INDEX idx_agents_erc8004_id ON agents(erc8004_agent_id);
+CREATE INDEX idx_agents_agent0_id ON agents(agent0_agent_id);
 
 -- Tags (primary categorization)
 CREATE TABLE tags (

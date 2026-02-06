@@ -4,6 +4,28 @@
 
 require('dotenv').config();
 
+function parseIntOrNull(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseUsdcBaseUnits(value, fallback) {
+  if (value === undefined || value === null || value === '') return fallback;
+  const raw = String(value).trim();
+  if (!/^\d+(\.\d{1,6})?$/.test(raw)) return fallback;
+  const [whole, fraction = ''] = raw.split('.');
+  const padded = (fraction + '000000').slice(0, 6);
+  const amount = Number(whole) * 1_000_000 + Number(padded);
+  return Number.isFinite(amount) ? amount : fallback;
+}
+
+function resolveRegistrationFeeBaseUnits() {
+  const baseUnits = parseIntOrNull(process.env.AGENT_REGISTER_USDC_BASE_UNITS);
+  if (baseUnits !== null) return baseUnits;
+  return parseUsdcBaseUnits(process.env.AGENT_REGISTER_USDC || '5', 5_000_000);
+}
+
 const config = {
   // Server
   port: parseInt(process.env.PORT, 10) || 3000,
@@ -77,7 +99,38 @@ const config = {
     address: process.env.ADDRESS,
     env: process.env.X402_ENV || 'testnet',
     facilitatorUrl: process.env.FACILITATOR_URL || 'https://x402.org/facilitator',
-    agentRegisterPrice: process.env.AGENT_REGISTER_PRICE || '$0.001'
+    agentRegisterPrice: process.env.AGENT_REGISTER_PRICE || '$5.00'
+  },
+
+  // Blockchain (registry + payments)
+  blockchain: {
+    registryAddress: process.env.REGISTRY_ADDRESS,
+    usdcAddress: process.env.USDC_ADDRESS,
+    rpcUrl: process.env.BASE_RPC_URL
+      || process.env.BASE_SEPOLIA_RPC_URL
+      || process.env.ERC8004_RPC_URL
+      || 'https://sepolia.base.org',
+    chainId: parseIntOrNull(process.env.BLOCKCHAIN_CHAIN_ID)
+      || parseIntOrNull(process.env.BASE_CHAIN_ID)
+      || parseIntOrNull(process.env.ERC8004_CHAIN_ID),
+    custodialAddress: process.env.CUSTODIAL_WALLET_ADDRESS || process.env.ADDRESS,
+    custodialPrivateKey: process.env.CUSTODIAL_PRIVATE_KEY || process.env.ERC8004_DEPLOYER_PRIVATE_KEY,
+    paymentRecipient: process.env.ADDRESS || process.env.REGISTRY_ADDRESS,
+    minConfirmations: parseIntOrNull(process.env.USDC_MIN_CONFIRMATIONS) || 1,
+    registrationFeeUsdc: resolveRegistrationFeeBaseUnits()
+  },
+
+  // Agent0 (ERC-8004) identity
+  agent0: {
+    chainId: parseIntOrNull(process.env.AGENT0_CHAIN_ID),
+    rpcUrl: process.env.AGENT0_RPC_URL || process.env.BASE_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
+    identityContract: process.env.AGENT0_IDENTITY_CONTRACT,
+    ipfsProvider: process.env.AGENT0_IPFS_PROVIDER || process.env.IPFS_PROVIDER || 'pinata',
+    pinataJwt: process.env.PINATA_JWT,
+    filecoinToken: process.env.FILECOIN_TOKEN,
+    subgraphUrl: process.env.AGENT0_SUBGRAPH_URL,
+    adapterPath: process.env.AGENT0_ADAPTER_PATH,
+    mockMode: process.env.AGENT0_MOCK === 'true' || (!process.env.AGENT0_IDENTITY_CONTRACT && process.env.NODE_ENV !== 'production')
   },
 
   // ERC-8004 identity (optional)
@@ -118,6 +171,14 @@ function validateConfig() {
 
   if (config.erc8004?.authRequired && !config.erc8004.registryAddress) {
     console.warn('[config] ERC8004_AUTH_REQUIRED is enabled but ERC8004_REGISTRY_ADDRESS is not set.');
+  }
+
+  if (!config.agent0?.mockMode && !config.agent0?.identityContract) {
+    console.warn('[config] Agent0 identity contract not configured; set AGENT0_IDENTITY_CONTRACT or AGENT0_MOCK=true.');
+  }
+
+  if (!config.blockchain?.registryAddress) {
+    console.warn('[config] REGISTRY_ADDRESS not set; custodial registry writes are disabled.');
   }
 }
 

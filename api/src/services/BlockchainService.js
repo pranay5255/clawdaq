@@ -6,36 +6,38 @@
 const { ethers } = require('ethers');
 const config = require('../config');
 
-// Contract ABIs (simplified for the functions we need)
-const REGISTRY_V2_ABI = [
+// Contract ABIs (Agent0CustodialRegistry - simplified for the functions we need)
+const REGISTRY_ABI = [
   // View functions
   "function owner() view returns (address)",
-  "function version() view returns (uint256)",
+  "function usdc() view returns (address)",
   "function REGISTRATION_FEE() view returns (uint256)",
-  "function SWAP_AMOUNT() view returns (uint256)",
+  "function MAX_BATCH_SIZE() view returns (uint256)",
   "function treasuryBalance() view returns (uint256)",
-  "function pendingSwapAmount() view returns (uint256)",
-  "function totalTokensPurchased() view returns (uint256)",
   "function totalAgents() view returns (uint256)",
-  "function isAgentRegistered(string calldata agentId) view returns (bool)",
-  "function getTokenId(string calldata agentId) view returns (uint256)",
-  "function getActivityByAgentId(string calldata agentId) view returns (uint256,uint256,uint256,uint256,uint256)",
-  "function getReputationByAgentId(string calldata agentId) view returns (uint256,uint256,uint256,uint256,uint256,uint256,uint256,bool)",
-  "function getTreasuryState() view returns (uint256,uint256,uint256,uint256)",
-  
+  "function agents(uint256 agentId) view returns (address payerEoa, string agentUri, uint256 registeredAt, bool isActive)",
+  "function reputations(uint256 agentId) view returns (uint256 karma, uint256 questionsAsked, uint256 answersGiven, uint256 acceptedAnswers, uint256 upvotesReceived, uint256 downvotesReceived, uint256 lastUpdated, bool isActive)",
+  "function activities(uint256 agentId) view returns (uint256 questionsCount, uint256 answersCount, uint256 upvotesReceived, uint256 downvotesReceived, uint256 lastUpdated)",
+
   // State-changing functions
-  "function registerAgentWithPayment(string calldata agentId, address to) returns (uint256)",
-  "function batchRegisterAgents(string[] calldata agentIds, address[] calldata owners)",
-  "function updateAgentActivity(uint256 tokenId, uint256 questionsCount, uint256 answersCount, uint256 upvotesReceived, uint256 downvotesReceived)",
-  "function updateReputation(uint256 tokenId, tuple(uint256 tokenId, uint256 karma, uint256 questionsAsked, uint256 answersGiven, uint256 acceptedAnswers, uint256 upvotesReceived, uint256 downvotesReceived) calldata update)",
-  "function executePendingSwap(uint256 minAmountOut) returns (uint256)",
+  "function registerAgent(uint256 agentId, address payerEoa, string agentUri)",
+  "function setAgentUri(uint256 agentId, string agentUri)",
+  "function setAgentActive(uint256 agentId, bool isActive)",
+  "function updateReputation(uint256 agentId, tuple(uint256 agentId, uint256 karma, uint256 questionsAsked, uint256 answersGiven, uint256 acceptedAnswers, uint256 upvotesReceived, uint256 downvotesReceived) update)",
+  "function batchUpdateReputations(tuple(uint256 agentId, uint256 karma, uint256 questionsAsked, uint256 answersGiven, uint256 acceptedAnswers, uint256 upvotesReceived, uint256 downvotesReceived)[] updates)",
+  "function updateAgentActivity(uint256 agentId, uint256 questionsCount, uint256 answersCount, uint256 upvotesReceived, uint256 downvotesReceived)",
+  "function batchUpdateActivities(tuple(uint256 agentId, uint256 questionsCount, uint256 answersCount, uint256 upvotesReceived, uint256 downvotesReceived)[] updates)",
   "function withdrawTreasury(uint256 amount, address to)",
-  
+
   // Events
-  "event AgentRegistered(uint256 indexed tokenId, string agentId, address indexed owner, uint256 registrationFee)",
-  "event ActivityUpdated(uint256 indexed tokenId, uint256 questionsCount, uint256 answersCount, uint256 timestamp)",
-  "event TreasuryDeposited(uint256 amount)",
-  "event SwapExecuted(uint256 usdcAmount, uint256 tokenAmountReceived, uint256 timestamp)"
+  "event AgentRegistered(uint256 indexed agentId, uint256 indexed tokenId, address indexed payerEoa, string agentUri)",
+  "event AgentUriUpdated(uint256 indexed agentId, string agentUri)",
+  "event AgentActiveUpdated(uint256 indexed agentId, bool isActive)",
+  "event ReputationUpdated(uint256 indexed agentId, uint256 karma, uint256 timestamp)",
+  "event BatchReputationUpdated(uint256 count, uint256 timestamp)",
+  "event ActivityUpdated(uint256 indexed agentId, uint256 questionsCount, uint256 answersCount, uint256 timestamp)",
+  "event BatchActivityUpdated(uint256 count, uint256 timestamp)",
+  "event TreasuryWithdrawn(uint256 amount, address indexed to)"
 ];
 
 const ERC20_ABI = [
@@ -71,7 +73,7 @@ class BlockchainService {
     }
 
     this.provider = new ethers.JsonRpcProvider(rpcUrl);
-    this.registryContract = new ethers.Contract(registryAddress, REGISTRY_V2_ABI, this.provider);
+    this.registryContract = new ethers.Contract(registryAddress, REGISTRY_ABI, this.provider);
     
     if (usdcAddress) {
       this.usdcContract = new ethers.Contract(usdcAddress, ERC20_ABI, this.provider);
@@ -89,6 +91,18 @@ class BlockchainService {
     return new ethers.Wallet(privateKey, this.provider);
   }
 
+  normalizeAgentId(agentId) {
+    if (agentId === null || agentId === undefined) {
+      throw new Error('agentId is required');
+    }
+    if (typeof agentId === 'bigint') return agentId;
+    const raw = typeof agentId === 'number' ? agentId.toString() : String(agentId).trim();
+    if (!raw) throw new Error('agentId is required');
+    const parsed = BigInt(raw);
+    if (parsed <= 0n) throw new Error('agentId must be greater than 0');
+    return parsed;
+  }
+
   /**
    * Check if an agent is registered on the blockchain
    */
@@ -97,7 +111,10 @@ class BlockchainService {
     if (!this.registryContract) return null;
 
     try {
-      return await this.registryContract.isAgentRegistered(agentId);
+      const normalizedId = this.normalizeAgentId(agentId);
+      const record = await this.registryContract.agents(normalizedId);
+      const registeredAt = record?.registeredAt ?? record?.[2];
+      return registeredAt ? BigInt(registeredAt) > 0n : false;
     } catch (error) {
       console.error('[BlockchainService] Error checking registration:', error);
       return null;
@@ -112,8 +129,9 @@ class BlockchainService {
     if (!this.registryContract) return null;
 
     try {
-      const tokenId = await this.registryContract.getTokenId(agentId);
-      return tokenId.toString();
+      const normalizedId = this.normalizeAgentId(agentId);
+      const registered = await this.isAgentRegistered(normalizedId);
+      return registered ? normalizedId.toString() : null;
     } catch (error) {
       console.error('[BlockchainService] Error getting token ID:', error);
       return null;
@@ -128,8 +146,9 @@ class BlockchainService {
     if (!this.registryContract) return null;
 
     try {
-      const [questions, answers, upvotes, downvotes, lastUpdated] = 
-        await this.registryContract.getActivityByAgentId(agentId);
+      const normalizedId = this.normalizeAgentId(agentId);
+      const [questions, answers, upvotes, downvotes, lastUpdated] =
+        await this.registryContract.activities(normalizedId);
       
       return {
         questionsCount: questions.toString(),
@@ -152,8 +171,9 @@ class BlockchainService {
     if (!this.registryContract) return null;
 
     try {
-      const [karma, questions, answers, accepted, upvotes, downvotes, lastUpdated, isActive] = 
-        await this.registryContract.getReputationByAgentId(agentId);
+      const normalizedId = this.normalizeAgentId(agentId);
+      const [karma, questions, answers, accepted, upvotes, downvotes, lastUpdated, isActive] =
+        await this.registryContract.reputations(normalizedId);
       
       return {
         karma: karma.toString(),
@@ -179,14 +199,14 @@ class BlockchainService {
     if (!this.registryContract) return null;
 
     try {
-      const [treasury, pending, tokenBalance, totalPurchased] = 
-        await this.registryContract.getTreasuryState();
+      const [treasury, totalAgents] = await Promise.all([
+        this.registryContract.treasuryBalance(),
+        this.registryContract.totalAgents()
+      ]);
       
       return {
         treasuryBalance: ethers.formatUnits(treasury, 6), // USDC has 6 decimals
-        pendingSwapAmount: ethers.formatUnits(pending, 6),
-        tokenBalance: tokenBalance.toString(),
-        totalTokensPurchased: totalPurchased.toString()
+        totalAgents: totalAgents.toString()
       };
     } catch (error) {
       console.error('[BlockchainService] Error getting treasury state:', error);
@@ -236,25 +256,36 @@ class BlockchainService {
    * Register an agent on the blockchain
    * This is the main integration point - called after backend registration
    * 
-   * @param {string} agentId - The ClawDAQ agent ID
-   * @param {string} walletAddress - The agent's wallet address
-   * @param {string} privateKey - The agent's private key for signing
+   * @param {Object} params - Registration payload
+   * @param {string|number|bigint} params.agentId - Agent0 token ID
+   * @param {string} params.payerEoa - Wallet that paid the registration fee
+   * @param {string} params.agentUri - Agent metadata URI
+   * @param {string} params.ownerPrivateKey - Registry owner private key
    * @returns {Promise<Object>} Registration result
    */
-  async registerAgentOnChain(agentId, walletAddress, privateKey) {
+  async registerAgentOnChain({ agentId, payerEoa, agentUri, ownerPrivateKey }) {
     if (!this.isInitialized) this.initialize();
     if (!this.registryContract) {
       throw new Error('Blockchain service not initialized');
     }
 
-    const signer = this.getSigner(privateKey);
+    if (!ownerPrivateKey) {
+      throw new Error('ownerPrivateKey is required');
+    }
+
+    if (!payerEoa) {
+      throw new Error('payerEoa is required');
+    }
+
+    const normalizedId = this.normalizeAgentId(agentId);
+    const signer = this.getSigner(ownerPrivateKey);
     const registryWithSigner = this.registryContract.connect(signer);
 
     try {
       // Check if already registered
-      const isRegistered = await this.isAgentRegistered(agentId);
+      const isRegistered = await this.isAgentRegistered(normalizedId);
       if (isRegistered) {
-        const tokenId = await this.getTokenId(agentId);
+        const tokenId = await this.getTokenId(normalizedId);
         return {
           success: false,
           alreadyRegistered: true,
@@ -263,38 +294,9 @@ class BlockchainService {
         };
       }
 
-      // Get registration fee
-      const fee = await this.registryContract.REGISTRATION_FEE();
-      
-      // Check USDC balance
-      const balance = await this.usdcContract.balanceOf(walletAddress);
-      if (balance < fee) {
-        return {
-          success: false,
-          error: 'INSUFFICIENT_BALANCE',
-          message: `Insufficient USDC balance. Required: ${ethers.formatUnits(fee, 6)} USDC`,
-          required: ethers.formatUnits(fee, 6),
-          balance: ethers.formatUnits(balance, 6)
-        };
-      }
-
-      // Check/approve USDC allowance
-      const allowance = await this.usdcContract.allowance(walletAddress, await this.registryContract.getAddress());
-      
-      if (allowance < fee) {
-        console.log('[BlockchainService] Approving USDC spend...');
-        const usdcWithSigner = this.usdcContract.connect(signer);
-        const approveTx = await usdcWithSigner.approve(
-          await this.registryContract.getAddress(),
-          fee
-        );
-        await approveTx.wait();
-        console.log('[BlockchainService] USDC approved:', approveTx.hash);
-      }
-
       // Register agent
       console.log('[BlockchainService] Registering agent on blockchain...');
-      const tx = await registryWithSigner.registerAgentWithPayment(agentId, walletAddress);
+      const tx = await registryWithSigner.registerAgent(normalizedId, payerEoa, agentUri || '');
       const receipt = await tx.wait();
 
       // Parse event to get token ID
@@ -308,10 +310,11 @@ class BlockchainService {
         })
         .find(parsed => parsed && parsed.name === 'AgentRegistered');
 
-      const tokenId = event ? event.args.tokenId.toString() : null;
+      const tokenId = event ? event.args.tokenId.toString() : normalizedId.toString();
 
       return {
         success: true,
+        agentId: normalizedId.toString(),
         tokenId: tokenId,
         transactionHash: receipt.hash,
         blockNumber: receipt.blockNumber,
@@ -331,14 +334,6 @@ class BlockchainService {
           message: 'Agent already registered on blockchain'
         };
       }
-      
-      if (error.message.includes('InsufficientAllowance')) {
-        return {
-          success: false,
-          error: 'INSUFFICIENT_ALLOWANCE',
-          message: 'USDC allowance insufficient'
-        };
-      }
 
       return {
         success: false,
@@ -352,15 +347,16 @@ class BlockchainService {
   /**
    * Update agent activity on-chain (owner only)
    */
-  async updateAgentActivity(tokenId, activity, ownerPrivateKey) {
+  async updateAgentActivity(agentId, activity, ownerPrivateKey) {
     if (!this.isInitialized) this.initialize();
     
     const signer = this.getSigner(ownerPrivateKey);
     const registryWithSigner = this.registryContract.connect(signer);
 
     try {
+      const normalizedId = this.normalizeAgentId(agentId);
       const tx = await registryWithSigner.updateAgentActivity(
-        tokenId,
+        normalizedId,
         activity.questionsCount,
         activity.answersCount,
         activity.upvotesReceived,
@@ -384,6 +380,36 @@ class BlockchainService {
   }
 
   /**
+   * Update agent URI on-chain (owner only)
+   */
+  async setAgentIdentity(agentId, _agentWallet, agentUri, ownerPrivateKey) {
+    if (!this.isInitialized) this.initialize();
+    if (!this.registryContract) {
+      throw new Error('Blockchain service not initialized');
+    }
+
+    const signer = this.getSigner(ownerPrivateKey);
+    const registryWithSigner = this.registryContract.connect(signer);
+
+    try {
+      const normalizedId = this.normalizeAgentId(agentId);
+      const tx = await registryWithSigner.setAgentUri(normalizedId, agentUri);
+      const receipt = await tx.wait();
+      return {
+        success: true,
+        transactionHash: receipt.hash,
+        blockNumber: receipt.blockNumber
+      };
+    } catch (error) {
+      console.error('[BlockchainService] setAgentIdentity error:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
    * Get contract info
    */
   async getContractInfo() {
@@ -391,21 +417,23 @@ class BlockchainService {
     if (!this.registryContract) return null;
 
     try {
-      const [owner, version, registrationFee, swapAmount, totalAgents] = await Promise.all([
+      const [owner, registrationFee, maxBatchSize, totalAgents, treasury, usdc] = await Promise.all([
         this.registryContract.owner(),
-        this.registryContract.version(),
         this.registryContract.REGISTRATION_FEE(),
-        this.registryContract.SWAP_AMOUNT(),
-        this.registryContract.totalAgents()
+        this.registryContract.MAX_BATCH_SIZE(),
+        this.registryContract.totalAgents(),
+        this.registryContract.treasuryBalance(),
+        this.registryContract.usdc()
       ]);
 
       return {
         address: await this.registryContract.getAddress(),
         owner,
-        version: version.toString(),
         registrationFee: ethers.formatUnits(registrationFee, 6),
-        swapAmount: ethers.formatUnits(swapAmount, 6),
-        totalAgents: totalAgents.toString()
+        maxBatchSize: maxBatchSize.toString(),
+        totalAgents: totalAgents.toString(),
+        treasuryBalance: ethers.formatUnits(treasury, 6),
+        usdc
       };
     } catch (error) {
       console.error('[BlockchainService] Error getting contract info:', error);

@@ -4,11 +4,12 @@ out = "out"
 libs = ["lib"]
 
 # Solc version
-solc = "0.8.19"
+solc = "0.8.24"
 
 # Optimizer
 optimizer = true
 optimizer_runs = 200
+via_ir = true
 
 # Remappings
 remappings = [
@@ -20,15 +21,20 @@ remappings = [
 # FFI for reading JSON in scripts
 ffi = true
 
-# Allow reading files from data/ directory
-fs_permissions = [{ access = "read", path = "./data" }]
+# Allow reading files from data/ directory and read-write for deployments
+fs_permissions = [
+    { access = "read", path = "./data" },
+    { access = "read-write", path = "./deployments" }
+]
+
 
 # RPC Endpoints
 [rpc_endpoints]
 base = "https://mainnet.base.org"
 base_sepolia = "https://sepolia.base.org"
 
-# Etherscan verification
+# Etherscan v2 API verification (https://docs.etherscan.io/)
+# BASESCAN_API_KEY uses your Etherscan v2 API key - works across all EVM chains
 [etherscan]
 base = { key = "${BASESCAN_API_KEY}", url = "https://api.basescan.org/api" }
 base_sepolia = { key = "${BASESCAN_API_KEY}", url = "https://api-sepolia.basescan.org/api" }

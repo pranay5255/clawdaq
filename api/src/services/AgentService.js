@@ -68,6 +68,100 @@ class AgentService {
       important: 'Save your API key! You will not see it again.'
     };
   }
+
+  /**
+   * Register a new agent after verified payment
+   *
+   * @param {Object} data - Registration data
+   * @param {string} data.name - Agent name
+   * @param {string} data.description - Agent description
+   * @param {string} data.txHash - Payment transaction hash (optional)
+   * @param {string} data.payerEoa - Wallet that paid the registration fee
+   * @param {Object} data.agent0 - Agent0 identity payload
+   * @returns {Promise<Object>} Registration result with API key
+   */
+  static async registerWithPayment({ name, description = '', txHash, payerEoa, agent0 }) {
+    if (txHash && !/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
+      throw new BadRequestError('txHash must be a valid hash');
+    }
+
+    // Validate name (same rules as register)
+    if (!name || typeof name !== 'string') {
+      throw new BadRequestError('Name is required');
+    }
+
+    const normalizedName = name.toLowerCase().trim();
+
+    if (normalizedName.length < 2 || normalizedName.length > 32) {
+      throw new BadRequestError('Name must be 2-32 characters');
+    }
+
+    if (!/^[a-z0-9_]+$/i.test(normalizedName)) {
+      throw new BadRequestError(
+        'Name can only contain letters, numbers, and underscores'
+      );
+    }
+
+    const existing = await queryOne(
+      'SELECT id FROM agents WHERE name = $1',
+      [normalizedName]
+    );
+
+    if (existing) {
+      throw new ConflictError('Name already taken', 'Try a different name');
+    }
+
+    if (txHash) {
+      const existingTx = await queryOne(
+        'SELECT id FROM agents WHERE x402_tx_hash = $1',
+        [txHash]
+      );
+
+      if (existingTx) {
+        throw new ConflictError('Payment already used', 'Use a new transaction');
+      }
+    }
+
+    const apiKey = generateApiKey();
+    const apiKeyHash = hashToken(apiKey);
+
+    const agent0ChainId = agent0?.chainId || null;
+    const agent0AgentId = agent0?.agentId || null;
+    const agent0AgentUri = agent0?.agentUri || null;
+    const agent0Metadata = agent0?.metadata || null;
+
+    const agent = await queryOne(
+      `INSERT INTO agents (
+         name, display_name, description, api_key_hash,
+         status, is_claimed,
+         wallet_address, payer_eoa,
+         agent0_chain_id, agent0_agent_id, agent0_agent_uri, agent0_metadata,
+         x402_tx_hash
+       )
+       VALUES ($1, $2, $3, $4, 'active', true, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING id, name, display_name, created_at`,
+      [
+        normalizedName,
+        name.trim(),
+        description,
+        apiKeyHash,
+        payerEoa,
+        payerEoa,
+        agent0ChainId,
+        agent0AgentId,
+        agent0AgentUri,
+        agent0Metadata,
+        txHash
+      ]
+    );
+
+    return {
+      agent: {
+        api_key: apiKey
+      },
+      important: 'Save your API key! You will not see it again.'
+    };
+  }
   
   /**
    * Find agent by API key
@@ -80,7 +174,10 @@ class AgentService {
     
     return queryOne(
       `SELECT id, name, display_name, description, karma, status, is_claimed,
-              wallet_address, erc8004_chain_id, erc8004_agent_id, erc8004_agent_uri, erc8004_registered_at,
+              wallet_address, payer_eoa,
+              erc8004_chain_id, erc8004_agent_id, erc8004_agent_uri, erc8004_registered_at,
+              agent0_chain_id, agent0_agent_id, agent0_agent_uri, agent0_metadata, reputation_summary,
+              x402_supported, x402_tx_hash,
               created_at, updated_at
        FROM agents WHERE api_key_hash = $1`,
       [apiKeyHash]
@@ -99,7 +196,10 @@ class AgentService {
     return queryOne(
       `SELECT id, name, display_name, description, karma, status, is_claimed, 
               follower_count, following_count,
-              wallet_address, erc8004_chain_id, erc8004_agent_id, erc8004_agent_uri, erc8004_registered_at,
+              wallet_address, payer_eoa,
+              erc8004_chain_id, erc8004_agent_id, erc8004_agent_uri, erc8004_registered_at,
+              agent0_chain_id, agent0_agent_id, agent0_agent_uri, agent0_metadata, reputation_summary,
+              x402_supported, x402_tx_hash,
               created_at, last_active
        FROM agents WHERE name = $1`,
       [normalizedName]
@@ -116,7 +216,10 @@ class AgentService {
     return queryOne(
       `SELECT id, name, display_name, description, karma, status, is_claimed,
               follower_count, following_count,
-              wallet_address, erc8004_chain_id, erc8004_agent_id, erc8004_agent_uri, erc8004_registered_at,
+              wallet_address, payer_eoa,
+              erc8004_chain_id, erc8004_agent_id, erc8004_agent_uri, erc8004_registered_at,
+              agent0_chain_id, agent0_agent_id, agent0_agent_uri, agent0_metadata, reputation_summary,
+              x402_supported, x402_tx_hash,
               created_at, last_active
        FROM agents WHERE id = $1`,
       [id]
@@ -132,7 +235,10 @@ class AgentService {
   static async findByErc8004AgentId(agentId) {
     return queryOne(
       `SELECT id, name, display_name, description, karma, status, is_claimed,
-              wallet_address, erc8004_chain_id, erc8004_agent_id, erc8004_agent_uri, erc8004_registered_at,
+              wallet_address, payer_eoa,
+              erc8004_chain_id, erc8004_agent_id, erc8004_agent_uri, erc8004_registered_at,
+              agent0_chain_id, agent0_agent_id, agent0_agent_uri, agent0_metadata, reputation_summary,
+              x402_supported, x402_tx_hash,
               created_at, last_active
        FROM agents WHERE erc8004_agent_id = $1`,
       [agentId]
