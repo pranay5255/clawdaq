@@ -8,12 +8,28 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 /**
+ * @title IERC8004IdentityRegistry
+ * @notice Interface for the canonical ERC-8004 IdentityRegistry contract.
+ */
+interface IERC8004IdentityRegistry {
+    function register(string memory agentURI) external returns (uint256 agentId);
+    function setAgentURI(uint256 agentId, string calldata newURI) external;
+    function getAgentWallet(uint256 agentId) external view returns (address);
+    function tokenURI(uint256 tokenId) external view returns (string memory);
+    function ownerOf(uint256 tokenId) external view returns (address);
+}
+
+/**
  * @title Agent0CustodialRegistry
- * @notice Custodial registry for Agent0 identities with on-chain reputation and treasury.
- * @dev Holds Agent0 NFTs as a custodian (via safe mint/transfer) and stores payer EOA + reputation.
+ * @notice Custodial registry that atomically registers agents on the ERC-8004
+ *         IdentityRegistry and stores payer EOA, reputation, and activity data.
+ * @dev On registerAgent, this contract calls IdentityRegistry.register() which
+ *      mints an ERC-721 NFT to this contract (custodial ownership). The returned
+ *      tokenId becomes the canonical agentId used across all mappings.
  */
 contract Agent0CustodialRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
     using SafeERC20 for IERC20;
+
     struct AgentReputation {
         uint256 karma;
         uint256 questionsAsked;
@@ -62,6 +78,7 @@ contract Agent0CustodialRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
     uint256 public constant MAX_BATCH_SIZE = 200;
 
     IERC20 public usdc;
+    IERC8004IdentityRegistry public identityRegistry;
     uint256 public totalAgents;
 
     mapping(uint256 => AgentRecord) public agents;
@@ -89,11 +106,17 @@ contract Agent0CustodialRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
     error ArrayLengthMismatch();
     error BatchTooLarge();
     error TreasuryWithdrawalFailed();
-    error InvalidAgentId();
+    error IdentityRegistrationFailed();
 
-    constructor(address usdcAddress, address initialOwner) Ownable(initialOwner) {
+    constructor(
+        address usdcAddress,
+        address identityRegistryAddress,
+        address initialOwner
+    ) Ownable(initialOwner) {
         if (usdcAddress == address(0)) revert InvalidAddress();
+        if (identityRegistryAddress == address(0)) revert InvalidAddress();
         usdc = IERC20(usdcAddress);
+        identityRegistry = IERC8004IdentityRegistry(identityRegistryAddress);
     }
 
     // ============================================
@@ -101,18 +124,25 @@ contract Agent0CustodialRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
     // ============================================
 
     /**
-     * @notice Register an Agent0 identity after payment verification.
-     * @param agentId Agent0 token ID
-     * @param payerEoa Wallet that paid the $5 USDC registration
-     * @param agentUri IPFS metadata URI
+     * @notice Register an agent atomically on the ERC-8004 IdentityRegistry.
+     * @dev Calls IdentityRegistry.register(agentUri) which mints an ERC-721 NFT
+     *      to this contract. The returned tokenId is used as the agentId in all
+     *      local mappings. Note: ERC-8004 agentIds start from 0.
+     * @param payerEoa Wallet that paid the $5 USDC registration via x402
+     * @param agentUri Agent metadata URI (HTTPS or IPFS)
+     * @return agentId The ERC-8004 tokenId assigned to the new agent
      */
     function registerAgent(
-        uint256 agentId,
         address payerEoa,
         string calldata agentUri
-    ) external onlyOwner {
-        if (agentId == 0) revert InvalidAgentId();
+    ) external onlyOwner returns (uint256 agentId) {
         if (payerEoa == address(0)) revert InvalidAddress();
+
+        // Atomically register on ERC-8004 IdentityRegistry
+        // This mints an ERC-721 NFT to this contract via _safeMint
+        agentId = identityRegistry.register(agentUri);
+
+        // Safety check: should never happen since IdentityRegistry uses monotonic counter
         if (agents[agentId].registeredAt != 0) revert AgentAlreadyRegistered();
 
         agents[agentId] = AgentRecord({
@@ -146,9 +176,16 @@ contract Agent0CustodialRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         emit AgentRegistered(agentId, agentId, payerEoa, agentUri);
     }
 
+    /**
+     * @notice Update the agent URI both locally and on the ERC-8004 IdentityRegistry.
+     * @param agentId ERC-8004 tokenId
+     * @param agentUri New metadata URI
+     */
     function setAgentUri(uint256 agentId, string calldata agentUri) external onlyOwner {
         if (agents[agentId].registeredAt == 0) revert TokenDoesNotExist();
         agents[agentId].agentUri = agentUri;
+        // Forward to the canonical IdentityRegistry (this contract is the NFT owner)
+        identityRegistry.setAgentURI(agentId, agentUri);
         emit AgentUriUpdated(agentId, agentUri);
     }
 

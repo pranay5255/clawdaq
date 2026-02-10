@@ -23,6 +23,9 @@ contract TestAgent0CustodialScript is Script {
     address public treasury = address(0x9999);
 
     uint256 public constant REGISTRATION_FEE = 5_000_000;
+    uint256 public registeredAgentId1;
+    uint256 public registeredAgentId2;
+    uint256 public registeredAgentId3;
 
     function run() external {
         // Get deployment addresses from environment or use defaults
@@ -72,13 +75,13 @@ contract TestAgent0CustodialScript is Script {
         console.log("\n--- Test 2: Agent Registration ---");
 
         // Register agent 1
-        uint256 agentId1 = 1;
         string memory uri1 = "ipfs://QmTestAgent1abc123";
-        registry.registerAgent(agentId1, agent1, uri1);
-        console.log("Registered Agent ID:", agentId1);
+        registeredAgentId1 = registry.registerAgent(agent1, uri1);
+        console.log("Registered Agent ID:", registeredAgentId1);
         console.log("Payer EOA:", agent1);
 
-        (address payerEoa, string memory agentUri, uint256 registeredAt, bool isActive) = registry.agents(agentId1);
+        (address payerEoa, string memory agentUri, uint256 registeredAt, bool isActive) =
+            registry.agents(registeredAgentId1);
         console.log("  Payer EOA:", payerEoa);
         console.log("  Agent URI:", agentUri);
         console.log("  Registered At:", registeredAt);
@@ -94,7 +97,7 @@ contract TestAgent0CustodialScript is Script {
             uint256 downvotesReceived,
             uint256 lastUpdated,
             bool repActive
-        ) = registry.reputations(agentId1);
+        ) = registry.reputations(registeredAgentId1);
 
         console.log("  Initial Reputation:");
         console.log("    Karma:", karma);
@@ -107,14 +110,12 @@ contract TestAgent0CustodialScript is Script {
         console.log("    Active:", repActive);
 
         // Register agent 2
-        uint256 agentId2 = 2;
-        registry.registerAgent(agentId2, agent2, "ipfs://QmTestAgent2xyz456");
-        console.log("Registered Agent ID:", agentId2);
+        registeredAgentId2 = registry.registerAgent(agent2, "ipfs://QmTestAgent2xyz456");
+        console.log("Registered Agent ID:", registeredAgentId2);
 
         // Register agent 3
-        uint256 agentId3 = 3;
-        registry.registerAgent(agentId3, agent3, "ipfs://QmTestAgent3def789");
-        console.log("Registered Agent ID:", agentId3);
+        registeredAgentId3 = registry.registerAgent(agent3, "ipfs://QmTestAgent3def789");
+        console.log("Registered Agent ID:", registeredAgentId3);
 
         console.log("Total Agents:", registry.totalAgents());
     }
@@ -122,7 +123,7 @@ contract TestAgent0CustodialScript is Script {
     function testAgentUriUpdate() internal {
         console.log("\n--- Test 3: Agent URI Update ---");
 
-        uint256 agentId = 1;
+        uint256 agentId = registeredAgentId1;
         string memory newUri = "ipfs://QmUpdatedAgent1newHash";
 
         (,string memory oldUri,,) = registry.agents(agentId);
@@ -137,7 +138,7 @@ contract TestAgent0CustodialScript is Script {
     function testAgentActiveStatus() internal {
         console.log("\n--- Test 4: Agent Active Status ---");
 
-        uint256 agentId = 2;
+        uint256 agentId = registeredAgentId2;
 
         (,,,bool isActiveBefore) = registry.agents(agentId);
         console.log("Agent", agentId, "Active (before):", isActiveBefore);
@@ -159,7 +160,7 @@ contract TestAgent0CustodialScript is Script {
     function testReputationUpdates() internal {
         console.log("\n--- Test 5: Reputation Updates ---");
 
-        uint256 agentId = 1;
+        uint256 agentId = registeredAgentId1;
 
         Agent0CustodialRegistry.ReputationUpdate memory update = Agent0CustodialRegistry.ReputationUpdate({
             agentId: agentId,
@@ -196,7 +197,7 @@ contract TestAgent0CustodialScript is Script {
     function testActivityUpdates() internal {
         console.log("\n--- Test 6: Activity Updates ---");
 
-        uint256 agentId = 1;
+        uint256 agentId = registeredAgentId1;
 
         registry.updateAgentActivity(agentId, 10, 15, 75, 3);
 
@@ -222,7 +223,7 @@ contract TestAgent0CustodialScript is Script {
         Agent0CustodialRegistry.ReputationUpdate[] memory updates = new Agent0CustodialRegistry.ReputationUpdate[](3);
 
         updates[0] = Agent0CustodialRegistry.ReputationUpdate({
-            agentId: 1,
+            agentId: registeredAgentId1,
             karma: 200,
             questionsAsked: 15,
             answersGiven: 25,
@@ -232,7 +233,7 @@ contract TestAgent0CustodialScript is Script {
         });
 
         updates[1] = Agent0CustodialRegistry.ReputationUpdate({
-            agentId: 2,
+            agentId: registeredAgentId2,
             karma: 180,
             questionsAsked: 12,
             answersGiven: 20,
@@ -242,7 +243,7 @@ contract TestAgent0CustodialScript is Script {
         });
 
         updates[2] = Agent0CustodialRegistry.ReputationUpdate({
-            agentId: 3,
+            agentId: registeredAgentId3,
             karma: 120,
             questionsAsked: 8,
             answersGiven: 12,
@@ -268,7 +269,7 @@ contract TestAgent0CustodialScript is Script {
         Agent0CustodialRegistry.ActivityUpdate[] memory updates = new Agent0CustodialRegistry.ActivityUpdate[](3);
 
         updates[0] = Agent0CustodialRegistry.ActivityUpdate({
-            agentId: 1,
+            agentId: registeredAgentId1,
             questionsCount: 20,
             answersCount: 30,
             upvotesReceived: 120,
@@ -276,7 +277,7 @@ contract TestAgent0CustodialScript is Script {
         });
 
         updates[1] = Agent0CustodialRegistry.ActivityUpdate({
-            agentId: 2,
+            agentId: registeredAgentId2,
             questionsCount: 18,
             answersCount: 25,
             upvotesReceived: 110,
@@ -284,7 +285,7 @@ contract TestAgent0CustodialScript is Script {
         });
 
         updates[2] = Agent0CustodialRegistry.ActivityUpdate({
-            agentId: 3,
+            agentId: registeredAgentId3,
             questionsCount: 12,
             answersCount: 18,
             upvotesReceived: 80,

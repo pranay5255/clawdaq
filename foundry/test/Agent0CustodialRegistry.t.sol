@@ -55,12 +55,62 @@ contract MockERC20 is IERC20 {
 }
 
 /**
+ * @title MockIdentityRegistry
+ * @notice Simulates the canonical ERC-8004 IdentityRegistry for testing.
+ *         Mimics register() -> _safeMint(msg.sender, agentId) behavior.
+ */
+contract MockIdentityRegistry is IERC8004IdentityRegistry {
+    uint256 private _lastId;
+    mapping(uint256 => address) private _owners;
+    mapping(uint256 => string) private _uris;
+    mapping(uint256 => address) private _wallets;
+
+    function register(string memory agentURI) external returns (uint256 agentId) {
+        agentId = _lastId++;
+        _owners[agentId] = msg.sender;
+        _uris[agentId] = agentURI;
+        _wallets[agentId] = msg.sender;
+
+        // Simulate _safeMint callback (ERC-721 safe transfer check)
+        if (msg.sender.code.length > 0) {
+            bytes4 retval = IERC721Receiver(msg.sender).onERC721Received(
+                address(this), address(0), agentId, ""
+            );
+            require(retval == IERC721Receiver.onERC721Received.selector, "ERC721: transfer rejected");
+        }
+    }
+
+    function setAgentURI(uint256 agentId, string calldata newURI) external {
+        require(_owners[agentId] == msg.sender, "Not authorized");
+        _uris[agentId] = newURI;
+    }
+
+    function getAgentWallet(uint256 agentId) external view returns (address) {
+        return _wallets[agentId];
+    }
+
+    function tokenURI(uint256 tokenId) external view returns (string memory) {
+        return _uris[tokenId];
+    }
+
+    function ownerOf(uint256 tokenId) external view returns (address) {
+        return _owners[tokenId];
+    }
+
+    /// @notice Helper to check current counter (for test assertions)
+    function lastId() external view returns (uint256) {
+        return _lastId;
+    }
+}
+
+/**
  * @title Agent0CustodialRegistryTest
- * @notice Comprehensive test suite for Agent0CustodialRegistry
+ * @notice Comprehensive test suite for Agent0CustodialRegistry with ERC-8004 integration
  */
 contract Agent0CustodialRegistryTest is Test {
     Agent0CustodialRegistry public registry;
     MockERC20 public usdc;
+    MockIdentityRegistry public identityReg;
 
     address public owner;
     address public agent1;
@@ -86,32 +136,39 @@ contract Agent0CustodialRegistryTest is Test {
         agent3 = makeAddr("agent3");
         treasury = makeAddr("treasury");
 
-        // Deploy mock USDC
+        // Deploy mocks
         usdc = new MockERC20("USD Coin", "USDC", 6);
+        identityReg = new MockIdentityRegistry();
 
-        // Deploy registry
-        registry = new Agent0CustodialRegistry(address(usdc), owner);
+        // Deploy registry with identity registry reference
+        registry = new Agent0CustodialRegistry(address(usdc), address(identityReg), owner);
 
         // Mint USDC to test addresses
         usdc.mint(agent1, 100_000_000); // $100 USDC
-        usdc.mint(agent2, 100_000_000); // $100 USDC
-        usdc.mint(agent3, 100_000_000); // $100 USDC
+        usdc.mint(agent2, 100_000_000);
+        usdc.mint(agent3, 100_000_000);
     }
 
     // ============================================
     // Constructor Tests
     // ============================================
 
-    function test_Constructor() public {
+    function test_Constructor() public view {
         assertEq(address(registry.usdc()), address(usdc));
+        assertEq(address(registry.identityRegistry()), address(identityReg));
         assertEq(registry.totalAgents(), 0);
         assertEq(registry.REGISTRATION_FEE(), REGISTRATION_FEE);
         assertEq(registry.MAX_BATCH_SIZE(), 200);
     }
 
-    function test_Constructor_RevertInvalidAddress() public {
+    function test_Constructor_RevertInvalidUsdcAddress() public {
         vm.expectRevert(Agent0CustodialRegistry.InvalidAddress.selector);
-        new Agent0CustodialRegistry(address(0), owner);
+        new Agent0CustodialRegistry(address(0), address(identityReg), owner);
+    }
+
+    function test_Constructor_RevertInvalidIdentityRegistryAddress() public {
+        vm.expectRevert(Agent0CustodialRegistry.InvalidAddress.selector);
+        new Agent0CustodialRegistry(address(usdc), address(0), owner);
     }
 
     // ============================================
@@ -119,13 +176,14 @@ contract Agent0CustodialRegistryTest is Test {
     // ============================================
 
     function test_RegisterAgent() public {
-        uint256 agentId = 1;
-        string memory agentUri = "ipfs://QmTest1";
+        string memory agentUri = "https://api.clawdaq.xyz/agents/1/registration.json";
 
+        // First agent gets agentId=0 from ERC-8004 (starts at 0)
         vm.expectEmit(true, true, true, true);
-        emit AgentRegistered(agentId, agentId, agent1, agentUri);
+        emit AgentRegistered(0, 0, agent1, agentUri);
 
-        registry.registerAgent(agentId, agent1, agentUri);
+        uint256 agentId = registry.registerAgent(agent1, agentUri);
+        assertEq(agentId, 0);
 
         // Verify agent record
         (address payerEoa, string memory uri, uint256 registeredAt, bool isActive) = registry.agents(agentId);
@@ -173,35 +231,50 @@ contract Agent0CustodialRegistryTest is Test {
         assertEq(registry.totalAgents(), 1);
     }
 
-    function test_RegisterAgent_RevertZeroAgentId() public {
-        vm.expectRevert(Agent0CustodialRegistry.InvalidAgentId.selector);
-        registry.registerAgent(0, agent1, "ipfs://QmTest");
+    function test_RegisterAgent_MintedToContract() public {
+        uint256 agentId = registry.registerAgent(agent1, "https://example.com/agent");
+
+        // NFT should be owned by the CustodialRegistry contract
+        address nftOwner = identityReg.ownerOf(agentId);
+        assertEq(nftOwner, address(registry));
+    }
+
+    function test_RegisterAgent_UriStoredOnIdentityRegistry() public {
+        string memory uri = "https://api.clawdaq.xyz/agents/test/registration.json";
+        uint256 agentId = registry.registerAgent(agent1, uri);
+
+        // URI should be set on the IdentityRegistry
+        string memory storedUri = identityReg.tokenURI(agentId);
+        assertEq(storedUri, uri);
     }
 
     function test_RegisterAgent_RevertZeroAddress() public {
         vm.expectRevert(Agent0CustodialRegistry.InvalidAddress.selector);
-        registry.registerAgent(1, address(0), "ipfs://QmTest");
-    }
-
-    function test_RegisterAgent_RevertAlreadyRegistered() public {
-        registry.registerAgent(1, agent1, "ipfs://QmTest1");
-
-        vm.expectRevert(Agent0CustodialRegistry.AgentAlreadyRegistered.selector);
-        registry.registerAgent(1, agent2, "ipfs://QmTest2");
+        registry.registerAgent(address(0), "https://example.com/agent");
     }
 
     function test_RegisterAgent_RevertNotOwner() public {
         vm.prank(agent1);
         vm.expectRevert();
-        registry.registerAgent(1, agent1, "ipfs://QmTest");
+        registry.registerAgent(agent1, "https://example.com/agent");
     }
 
     function test_RegisterMultipleAgents() public {
-        registry.registerAgent(1, agent1, "ipfs://QmTest1");
-        registry.registerAgent(2, agent2, "ipfs://QmTest2");
-        registry.registerAgent(3, agent3, "ipfs://QmTest3");
+        uint256 id0 = registry.registerAgent(agent1, "https://example.com/agent0");
+        uint256 id1 = registry.registerAgent(agent2, "https://example.com/agent1");
+        uint256 id2 = registry.registerAgent(agent3, "https://example.com/agent2");
 
+        // ERC-8004 assigns sequential IDs starting from 0
+        assertEq(id0, 0);
+        assertEq(id1, 1);
+        assertEq(id2, 2);
         assertEq(registry.totalAgents(), 3);
+    }
+
+    function test_RegisterAgent_AgentIdStartsFromZero() public {
+        // ERC-8004 IdentityRegistry uses _lastId++ (post-increment), starting from 0
+        uint256 agentId = registry.registerAgent(agent1, "https://example.com/agent");
+        assertEq(agentId, 0);
     }
 
     // ============================================
@@ -209,30 +282,34 @@ contract Agent0CustodialRegistryTest is Test {
     // ============================================
 
     function test_SetAgentUri() public {
-        uint256 agentId = 1;
-        registry.registerAgent(agentId, agent1, "ipfs://QmTest1");
+        uint256 agentId = registry.registerAgent(agent1, "https://example.com/old");
 
-        string memory newUri = "ipfs://QmTest2";
+        string memory newUri = "https://example.com/new";
         vm.expectEmit(true, true, true, true);
         emit AgentUriUpdated(agentId, newUri);
 
         registry.setAgentUri(agentId, newUri);
 
+        // Local storage updated
         (, string memory uri,,) = registry.agents(agentId);
         assertEq(uri, newUri);
+
+        // IdentityRegistry also updated
+        string memory identityUri = identityReg.tokenURI(agentId);
+        assertEq(identityUri, newUri);
     }
 
     function test_SetAgentUri_RevertTokenDoesNotExist() public {
         vm.expectRevert(Agent0CustodialRegistry.TokenDoesNotExist.selector);
-        registry.setAgentUri(999, "ipfs://QmTest");
+        registry.setAgentUri(999, "https://example.com/new");
     }
 
     function test_SetAgentUri_RevertNotOwner() public {
-        registry.registerAgent(1, agent1, "ipfs://QmTest1");
+        registry.registerAgent(agent1, "https://example.com/old");
 
         vm.prank(agent1);
         vm.expectRevert();
-        registry.setAgentUri(1, "ipfs://QmTest2");
+        registry.setAgentUri(0, "https://example.com/new");
     }
 
     // ============================================
@@ -240,8 +317,7 @@ contract Agent0CustodialRegistryTest is Test {
     // ============================================
 
     function test_SetAgentActive() public {
-        uint256 agentId = 1;
-        registry.registerAgent(agentId, agent1, "ipfs://QmTest1");
+        uint256 agentId = registry.registerAgent(agent1, "https://example.com/agent");
 
         vm.expectEmit(true, true, true, true);
         emit AgentActiveUpdated(agentId, false);
@@ -265,8 +341,7 @@ contract Agent0CustodialRegistryTest is Test {
     // ============================================
 
     function test_UpdateReputation() public {
-        uint256 agentId = 1;
-        registry.registerAgent(agentId, agent1, "ipfs://QmTest1");
+        uint256 agentId = registry.registerAgent(agent1, "https://example.com/agent");
 
         Agent0CustodialRegistry.ReputationUpdate memory update = Agent0CustodialRegistry.ReputationUpdate({
             agentId: agentId,
@@ -317,15 +392,15 @@ contract Agent0CustodialRegistryTest is Test {
     }
 
     function test_BatchUpdateReputations() public {
-        // Register 3 agents
-        registry.registerAgent(1, agent1, "ipfs://QmTest1");
-        registry.registerAgent(2, agent2, "ipfs://QmTest2");
-        registry.registerAgent(3, agent3, "ipfs://QmTest3");
+        // Register 3 agents (IDs: 0, 1, 2)
+        uint256 id0 = registry.registerAgent(agent1, "https://example.com/agent0");
+        uint256 id1 = registry.registerAgent(agent2, "https://example.com/agent1");
+        uint256 id2 = registry.registerAgent(agent3, "https://example.com/agent2");
 
         Agent0CustodialRegistry.ReputationUpdate[] memory updates = new Agent0CustodialRegistry.ReputationUpdate[](3);
 
         updates[0] = Agent0CustodialRegistry.ReputationUpdate({
-            agentId: 1,
+            agentId: id0,
             karma: 100,
             questionsAsked: 5,
             answersGiven: 10,
@@ -335,7 +410,7 @@ contract Agent0CustodialRegistryTest is Test {
         });
 
         updates[1] = Agent0CustodialRegistry.ReputationUpdate({
-            agentId: 2,
+            agentId: id1,
             karma: 200,
             questionsAsked: 10,
             answersGiven: 20,
@@ -345,7 +420,7 @@ contract Agent0CustodialRegistryTest is Test {
         });
 
         updates[2] = Agent0CustodialRegistry.ReputationUpdate({
-            agentId: 3,
+            agentId: id2,
             karma: 50,
             questionsAsked: 2,
             answersGiven: 5,
@@ -359,26 +434,23 @@ contract Agent0CustodialRegistryTest is Test {
 
         registry.batchUpdateReputations(updates);
 
-        // Verify first agent
-        (uint256 karma1,,,,,,,) = registry.reputations(1);
-        assertEq(karma1, 100);
+        (uint256 karma0,,,,,,,) = registry.reputations(id0);
+        assertEq(karma0, 100);
 
-        // Verify second agent
-        (uint256 karma2,,,,,,,) = registry.reputations(2);
-        assertEq(karma2, 200);
+        (uint256 karma1,,,,,,,) = registry.reputations(id1);
+        assertEq(karma1, 200);
 
-        // Verify third agent
-        (uint256 karma3,,,,,,,) = registry.reputations(3);
-        assertEq(karma3, 50);
+        (uint256 karma2,,,,,,,) = registry.reputations(id2);
+        assertEq(karma2, 50);
     }
 
     function test_BatchUpdateReputations_SkipsNonExistentAgents() public {
-        registry.registerAgent(1, agent1, "ipfs://QmTest1");
+        uint256 agentId = registry.registerAgent(agent1, "https://example.com/agent");
 
         Agent0CustodialRegistry.ReputationUpdate[] memory updates = new Agent0CustodialRegistry.ReputationUpdate[](2);
 
         updates[0] = Agent0CustodialRegistry.ReputationUpdate({
-            agentId: 1,
+            agentId: agentId,
             karma: 100,
             questionsAsked: 5,
             answersGiven: 10,
@@ -400,8 +472,8 @@ contract Agent0CustodialRegistryTest is Test {
         // Should not revert, just skip the non-existent agent
         registry.batchUpdateReputations(updates);
 
-        (uint256 karma1,,,,,,,) = registry.reputations(1);
-        assertEq(karma1, 100);
+        (uint256 karma,,,,,,,) = registry.reputations(agentId);
+        assertEq(karma, 100);
     }
 
     function test_BatchUpdateReputations_RevertBatchTooLarge() public {
@@ -416,8 +488,7 @@ contract Agent0CustodialRegistryTest is Test {
     // ============================================
 
     function test_UpdateAgentActivity() public {
-        uint256 agentId = 1;
-        registry.registerAgent(agentId, agent1, "ipfs://QmTest1");
+        uint256 agentId = registry.registerAgent(agent1, "https://example.com/agent");
 
         vm.expectEmit(true, true, true, true);
         emit ActivityUpdated(agentId, 10, 20, block.timestamp);
@@ -443,15 +514,14 @@ contract Agent0CustodialRegistryTest is Test {
     }
 
     function test_BatchUpdateActivities() public {
-        // Register 3 agents
-        registry.registerAgent(1, agent1, "ipfs://QmTest1");
-        registry.registerAgent(2, agent2, "ipfs://QmTest2");
-        registry.registerAgent(3, agent3, "ipfs://QmTest3");
+        uint256 id0 = registry.registerAgent(agent1, "https://example.com/agent0");
+        uint256 id1 = registry.registerAgent(agent2, "https://example.com/agent1");
+        uint256 id2 = registry.registerAgent(agent3, "https://example.com/agent2");
 
         Agent0CustodialRegistry.ActivityUpdate[] memory updates = new Agent0CustodialRegistry.ActivityUpdate[](3);
 
         updates[0] = Agent0CustodialRegistry.ActivityUpdate({
-            agentId: 1,
+            agentId: id0,
             questionsCount: 10,
             answersCount: 20,
             upvotesReceived: 50,
@@ -459,7 +529,7 @@ contract Agent0CustodialRegistryTest is Test {
         });
 
         updates[1] = Agent0CustodialRegistry.ActivityUpdate({
-            agentId: 2,
+            agentId: id1,
             questionsCount: 15,
             answersCount: 25,
             upvotesReceived: 60,
@@ -467,7 +537,7 @@ contract Agent0CustodialRegistryTest is Test {
         });
 
         updates[2] = Agent0CustodialRegistry.ActivityUpdate({
-            agentId: 3,
+            agentId: id2,
             questionsCount: 5,
             answersCount: 10,
             upvotesReceived: 30,
@@ -479,15 +549,13 @@ contract Agent0CustodialRegistryTest is Test {
 
         registry.batchUpdateActivities(updates);
 
-        // Verify first agent
-        (uint256 q1, uint256 a1,,,) = registry.activities(1);
-        assertEq(q1, 10);
-        assertEq(a1, 20);
+        (uint256 q0, uint256 a0,,,) = registry.activities(id0);
+        assertEq(q0, 10);
+        assertEq(a0, 20);
 
-        // Verify second agent
-        (uint256 q2, uint256 a2,,,) = registry.activities(2);
-        assertEq(q2, 15);
-        assertEq(a2, 25);
+        (uint256 q1, uint256 a1,,,) = registry.activities(id1);
+        assertEq(q1, 15);
+        assertEq(a1, 25);
     }
 
     function test_BatchUpdateActivities_RevertBatchTooLarge() public {
@@ -504,7 +572,6 @@ contract Agent0CustodialRegistryTest is Test {
     function test_TreasuryBalance() public {
         assertEq(registry.treasuryBalance(), 0);
 
-        // Send USDC to registry
         vm.prank(agent1);
         usdc.transfer(address(registry), REGISTRATION_FEE);
 
@@ -512,7 +579,6 @@ contract Agent0CustodialRegistryTest is Test {
     }
 
     function test_WithdrawTreasury() public {
-        // Send USDC to registry
         vm.prank(agent1);
         usdc.transfer(address(registry), REGISTRATION_FEE);
 
@@ -555,7 +621,7 @@ contract Agent0CustodialRegistryTest is Test {
     // ERC721 Receiver Tests
     // ============================================
 
-    function test_OnERC721Received() public {
+    function test_OnERC721Received() public view {
         bytes4 selector = registry.onERC721Received(address(0), address(0), 0, "");
         assertEq(selector, IERC721Receiver.onERC721Received.selector);
     }
@@ -565,13 +631,15 @@ contract Agent0CustodialRegistryTest is Test {
     // ============================================
 
     function test_FullRegistrationAndReputationFlow() public {
-        // Step 1: Agent pays USDC
+        // Step 1: Agent pays USDC (simulated via x402 off-chain, USDC sent to registry)
         vm.prank(agent1);
         usdc.transfer(address(registry), REGISTRATION_FEE);
 
-        // Step 2: Register agent
-        uint256 agentId = 1;
-        registry.registerAgent(agentId, agent1, "ipfs://QmTest1");
+        // Step 2: Register agent atomically (ERC-8004 + custodial record)
+        uint256 agentId = registry.registerAgent(agent1, "https://api.clawdaq.xyz/agents/1/registration.json");
+
+        // Verify NFT minted to registry
+        assertEq(identityReg.ownerOf(agentId), address(registry));
 
         // Step 3: Agent participates (simulated by reputation update)
         Agent0CustodialRegistry.ReputationUpdate memory update = Agent0CustodialRegistry.ReputationUpdate({
@@ -603,10 +671,11 @@ contract Agent0CustodialRegistryTest is Test {
     }
 
     function test_MultipleAgentsWithBatchUpdates() public {
-        // Register multiple agents
-        for (uint256 i = 1; i <= 10; i++) {
+        // Register 10 agents (IDs: 0-9)
+        uint256[] memory ids = new uint256[](10);
+        for (uint256 i = 0; i < 10; i++) {
             address payer = address(uint160(i + 100));
-            registry.registerAgent(i, payer, string(abi.encodePacked("ipfs://QmTest", i)));
+            ids[i] = registry.registerAgent(payer, string(abi.encodePacked("https://example.com/agent", i)));
         }
 
         assertEq(registry.totalAgents(), 10);
@@ -615,7 +684,7 @@ contract Agent0CustodialRegistryTest is Test {
         Agent0CustodialRegistry.ReputationUpdate[] memory updates = new Agent0CustodialRegistry.ReputationUpdate[](10);
         for (uint256 i = 0; i < 10; i++) {
             updates[i] = Agent0CustodialRegistry.ReputationUpdate({
-                agentId: i + 1,
+                agentId: ids[i],
                 karma: (i + 1) * 10,
                 questionsAsked: i + 1,
                 answersGiven: (i + 1) * 2,
@@ -628,13 +697,27 @@ contract Agent0CustodialRegistryTest is Test {
         registry.batchUpdateReputations(updates);
 
         // Verify a few agents
-        (uint256 karma1,,,,,,,) = registry.reputations(1);
-        assertEq(karma1, 10);
+        (uint256 karma0,,,,,,,) = registry.reputations(ids[0]);
+        assertEq(karma0, 10);
 
-        (uint256 karma5,,,,,,,) = registry.reputations(5);
-        assertEq(karma5, 50);
+        (uint256 karma4,,,,,,,) = registry.reputations(ids[4]);
+        assertEq(karma4, 50);
 
-        (uint256 karma10,,,,,,,) = registry.reputations(10);
-        assertEq(karma10, 100);
+        (uint256 karma9,,,,,,,) = registry.reputations(ids[9]);
+        assertEq(karma9, 100);
+    }
+
+    function test_SetAgentUri_SyncsToIdentityRegistry() public {
+        uint256 agentId = registry.registerAgent(agent1, "https://example.com/old");
+
+        // Update URI
+        registry.setAgentUri(agentId, "https://example.com/new");
+
+        // Both local and identity registry should have the new URI
+        (, string memory localUri,,) = registry.agents(agentId);
+        assertEq(localUri, "https://example.com/new");
+
+        string memory identityUri = identityReg.tokenURI(agentId);
+        assertEq(identityUri, "https://example.com/new");
     }
 }
