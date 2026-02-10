@@ -127,6 +127,7 @@ lib/forge-std/
 lib/openzeppelin-contracts/
 lib/openzeppelin-contracts-upgradeable/
 api/src/routes/blockchain.js
+api/SETUP-NEON.md
 foundry.lock
 foundry/INTEGRATION_GUIDE.md
 foundry/broadcast/
