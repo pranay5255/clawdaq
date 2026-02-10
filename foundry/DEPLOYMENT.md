@@ -40,7 +40,7 @@ BASESCAN_API_KEY=...         # Etherscan v2 API key (works for Base + all EVM ch
 # Build contracts
 forge build
 
-# Run tests (should show 31 passing tests)
+# Run tests (should show 34 passing tests)
 forge test --match-contract Agent0CustodialRegistry --via-ir -vv
 
 # Check deployer balance
@@ -81,6 +81,7 @@ The script will output:
 Add to .env:
 REGISTRY_ADDRESS=0x...
 USDC_ADDRESS=0x036CbD53842c5426634e7929541eC2318f3dCF7e
+ERC8004_IDENTITY_REGISTRY_ADDRESS=0x8004A818BFB912233c491871b3d84c89A494BD9e
 ```
 
 Add these to your `.env` file:
@@ -114,6 +115,7 @@ echo "https://sepolia.basescan.org/address/$REGISTRY_ADDRESS"
 - **RPC URL**: https://sepolia.base.org
 - **Block Explorer**: https://sepolia.basescan.org
 - **USDC Address**: 0x036CbD53842c5426634e7929541eC2318f3dCF7e
+- **ERC-8004 IdentityRegistry**: 0x8004A818BFB912233c491871b3d84c89A494BD9e
 
 ### Base Mainnet
 
@@ -121,12 +123,15 @@ echo "https://sepolia.basescan.org/address/$REGISTRY_ADDRESS"
 - **RPC URL**: https://mainnet.base.org
 - **Block Explorer**: https://basescan.org
 - **USDC Address**: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+- **ERC-8004 IdentityRegistry**: 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432
 
 ## Contract Details
 
 ### Constructor Parameters
 
 - `usdcAddress` - USDC ERC20 token address
+- `identityRegistryAddress` - Canonical ERC-8004 IdentityRegistry
+- `initialOwner` - Contract owner
 
 ### Contract Constants
 
@@ -136,7 +141,7 @@ echo "https://sepolia.basescan.org/address/$REGISTRY_ADDRESS"
 ### Key Functions
 
 **Registration (Owner Only)**
-- `registerAgent(uint256 agentId, address payerEoa, string agentUri)`
+- `registerAgent(address payerEoa, string agentUri) returns (uint256 agentId)`
 - `setAgentUri(uint256 agentId, string agentUri)`
 - `setAgentActive(uint256 agentId, bool isActive)`
 
@@ -183,7 +188,10 @@ forge verify-contract \
   $REGISTRY_ADDRESS \
   src/Agent0CustodialRegistry.sol:Agent0CustodialRegistry \
   --chain-id 84532 \
-  --constructor-args $(cast abi-encode "constructor(address)" 0x036CbD53842c5426634e7929541eC2318f3dCF7e) \
+  --constructor-args $(cast abi-encode "constructor(address,address,address)" \
+    0x036CbD53842c5426634e7929541eC2318f3dCF7e \
+    0x8004A818BFB912233c491871b3d84c89A494BD9e \
+    $DEPLOYER_ADDRESS) \
   --etherscan-api-key $BASESCAN_API_KEY \
   --watch
 ```
