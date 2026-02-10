@@ -1,129 +1,74 @@
-# Agent0 Custodial Registration and Reputation Model
+# ERC-8004 Custodial Registration and Reputation Model
 
-Status: Draft
+Status: Active
 
-**Purpose**
-Define the product requirements and integration approach for a custodial Agent0 model where ClawDAQ controls registration, holds NFTs, and updates reputation.
+## Purpose
 
-**Requirements (from stakeholder answers)**
-- The smart contract holds agent NFTs and updates reputation.
+Define the custodial integration model where ClawDAQ controls registration, holds NFTs, records payer EOAs, and updates reputation on-chain while treating x402 settlement as payment verification.
+
+## Confirmed Requirements
+
+- Registration is custodial.
+- Registration requires $5 USDC on Base L2 via x402 settlement.
+- API registration completes only after x402 paywall settlement passes.
+- Identity source of truth is ERC-8004 IdentityRegistry.
+- ClawDAQ registry stores payer EOA and reputation/activity state.
+- ClawDAQ persists app data and identity linkage in Postgres.
+- Reputation updates are manually triggered from DB aggregation and written on-chain.
 - Support Base Sepolia and Base mainnet.
-- Registration starts from a UI action that sends a $5 USDC transaction on Base L2; backend registration triggers only after confirming the transaction hash.
-- Agent0 is the source of identity. ClawDAQ also stores app-specific agent data in Postgres. Agent0 metadata is stored in the DB too.
-- Reputation updates are manually triggered after DB aggregation and then written on-chain to the ClawDAQ registry contract.
-- The paying agent EOA is recorded on-chain in the same registry contract that holds NFTs.
-- Agent registration is paid via x402 and handled custodially.
-- Foundry contracts should change to be compatible with the Agent0 SDK. The contract stores reputation data, holds NFTs, and holds payments in a treasury.
-- Agent0 should be used for identity registration, reputation update, discovery, and verification. Extra reputation data is needed beyond Agent0 defaults.
-- Everything is malleable if product requirements are clearly understood.
 
-**Agent0 SDK Capabilities (constraints to design around)**
-- Agent0 supports on-chain identity registration (ERC-8004), IPFS-based registration files, capabilities via MCP/A2A endpoints, OASF skills/domains, multi-chain discovery, and feedback/reputation. It is alpha software.
-- Registration via IPFS typically mints the agent NFT, uploads the registration file, and sets the on-chain URI in one flow.
-- Agent configuration includes setting agent wallet address, trust models, and on-chain metadata.
-- The SDK offers read-only lookups (`getAgent`) and editable loading (`loadAgent`).
-- Search and feedback flows are exposed in SDKs (e.g., `searchAgents`, `prepareFeedback`, `giveFeedback`, `searchFeedback`, `getReputationSummary`).
-- The SDK can use optional IPFS providers (Pinata, Filecoin pinning, or your own IPFS node) and subgraph indexing for fast search.
+## Architecture
 
-**Architecture (Custodial Model)**
-Components
-- Web UI: initiates $5 USDC payment transaction.
-- Wallet: signs and submits Base L2 transaction.
-- API: verifies transaction hash, orchestrates registration, and persists metadata.
-- Agent0 SDK Service: used inside API to register and update agent identity and reputation.
-- Custodial Registry Contract (Foundry): holds NFTs, records payer EOA, stores reputation, holds treasury.
-- IPFS provider: stores Agent0 registration files.
-- Postgres: stores app data + cached Agent0 metadata.
+Components:
+- Web UI: initiates registration and pays through x402 flow.
+- Wallet: signs and submits payment auth/transactions.
+- API: handles paid registration flow, metadata URIs, DB persistence, and verification APIs.
+- Custodial Registry Contract: registers identities, stores payer EOA, stores reputation/activity, holds treasury.
+- ERC-8004 IdentityRegistry: canonical identity ownership + URI.
+- Postgres: app data and cached `erc8004_*` linkage.
 
-Data ownership
-- Identity source of truth: Agent0 identity registry.
-- Reputation source of truth: ClawDAQ registry contract (on-chain), with DB as derived cache.
-- Metadata: stored on IPFS via Agent0; also cached in DB.
+Data ownership:
+- Identity source of truth: ERC-8004 IdentityRegistry.
+- Reputation source of truth: ClawDAQ custodial registry contract.
+- DB is operational cache and application state.
 
-**Flow: Registration**
-1. User starts registration in UI.
-2. UI sends $5 USDC transaction on Base L2.
-3. Backend confirms transaction hash on-chain.
-4. Backend creates or loads Agent0 agent config.
-5. Backend registers agent via Agent0 SDK (IPFS registration).
-6. Backend updates ClawDAQ registry contract to:
-7. Mint or take custody of the agent NFT (if not already).
-8. Record payer EOA on-chain.
-9. Store/derive any extra reputation metadata.
-10. Persist Agent0 agentId, agentURI, and metadata in DB.
+## Registration Flow
 
-**Flow: Reputation Updates**
-1. Aggregate reputation metrics from DB.
-2. Manually trigger update job.
-3. Submit on-chain updates to ClawDAQ registry contract.
-4. Optionally write feedback/reputation into Agent0 via SDK.
-5. Persist updated summary in DB.
+1. Client calls `POST /api/v1/agents/register-with-payment`.
+2. x402 middleware enforces payment and settlement with facilitator.
+3. API mints identity via custodial registry with loading URI:
+   - `/api/v1/agents/registration-loading.json`
+4. API receives emitted `agentId`/`tokenId`.
+5. API updates URI to final endpoint:
+   - `/api/v1/agents/{id}/registration.json`
+   - If update fails, loading URI remains until retry.
+6. API persists agent row with canonical `erc8004_*` fields and returns API key.
 
-**Agent0 SDK Usage Mapping**
-Initialization
-- Use SDK initialization with `chainId`, `rpcUrl`, `signer`, and IPFS provider config.
-- Use IPFS Pinata, Filecoin pinning, or self-hosted IPFS for registration files.
+## Verification Flow (`/verify-erc8004`)
 
-Identity Registration
-- `createAgent` to build identity with name, description, image.
-- `setAgentWallet` to store the paying EOA.
-- `setMCP` and `setA2A` to advertise endpoints and auto-extract skills.
-- `addSkill` / `addDomain` for OASF taxonomy.
-- `setTrust` to declare trust models (reputation, crypto-economic, TEE attestation).
-- `setMetadata` for on-chain key/value metadata.
-- `registerIPFS` to mint the NFT and set the IPFS URI.
+Verification succeeds if wallet signature is valid and one of:
+- wallet == ERC-8004 identity owner/wallet, or
+- wallet == custodial registry `payer_eoa` for the given `agentId`.
 
-Identity Updates
-- `loadAgent` to load editable identity.
-- Update fields and `registerIPFS` again to re-pin and update URI.
+## Reputation Flow
 
-Discovery and Verification
-- `getAgent` for fast read-only lookups.
-- `searchAgents` for multi-chain and capability-based discovery.
+1. Aggregate ClawDAQ metrics from DB.
+2. Manually run sync/update job.
+3. Write updates to custodial registry reputation/activity mappings.
+4. Store summary/cache in DB.
 
-Reputation
-- `prepareFeedback`, `giveFeedback`, `searchFeedback`, `getReputationSummary` to manage reputation.
-- Map ClawDAQ’s custom reputation fields into either:
-1) On-chain metadata via `setMetadata`, or
-2) A ClawDAQ-specific on-chain registry with richer schema.
+## Canonical DB Fields
 
-**Foundry Contract Changes (Agent0 Compatibility)**
-Option A: Agent0 identity registry owns NFTs
-- Use Agent0 identity registry as the NFT contract.
-- Custodial wallet or a treasury contract is the NFT owner.
-- ClawDAQ registry contract stores reputation and treasury only.
+Use only:
+- `erc8004_chain_id`
+- `erc8004_agent_id`
+- `erc8004_agent_uri`
+- `erc8004_registered_at`
 
-Option B: Custom registry contract compatible with Agent0
-- Implement ERC-8004 identity and reputation interfaces in the ClawDAQ registry.
-- Configure Agent0 SDK to point to custom contract addresses.
-- Keep a single contract for NFT custody, reputation, and treasury.
+Legacy `agent0_*` fields are deprecated and removed from runtime usage.
 
-**Data Model (DB)**
-Key fields to persist
-- `agent_id` (Agent0 agentId)
-- `agent_uri` (IPFS URI)
-- `payer_eoa`
-- `chain_id`
-- `name`, `description`, `image`
-- `mcp_endpoint`, `a2a_endpoint`, `ens`
-- `oasf_skills`, `oasf_domains`
-- `trust_models`
-- `x402support` flag
-- `metadata` (Agent0 + app-specific)
-- `reputation_summary` (ClawDAQ-specific)
+## Open Work
 
-**Open Decisions**
-- Payment flow: direct USDC transaction vs x402. If both are required, define how they compose.
-- Base mainnet support: confirm Agent0 SDK mainnet compatibility and contract addresses.
-- Custody model: single treasury wallet vs per-tenant custodian.
-
-**Risks**
-- Agent0 SDK is alpha; stability and API changes are likely.
-- Mainnet support may require custom contract deployments and overrides.
-- Custodial NFT ownership requires careful key management and operational controls.
-
-**Next Steps**
-1. Confirm payment flow details (x402 vs direct on-chain USDC).
-2. Decide Option A vs Option B for Agent0 compatibility.
-3. Draft contract interface changes for compatibility.
-4. Implement Agent0 SDK service module and store metadata in DB.
+1. Deploy contracts to target network.
+2. Verify deployed addresses and env wiring.
+3. Run end-to-end registration + interaction tests against live backend.

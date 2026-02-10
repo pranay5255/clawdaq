@@ -91,7 +91,8 @@ const config = {
   clawdaq: {
     tokenPrefix: 'clawdaq_',
     claimPrefix: 'clawdaq_claim_',
-    baseUrl: process.env.BASE_URL || 'https://www.clawdaq.xyz'
+    baseUrl: process.env.BASE_URL || 'https://www.clawdaq.xyz',
+    apiBaseUrl: process.env.API_BASE_URL || process.env.AGENT_METADATA_BASE_URL || null
   },
 
   // x402 payment (optional)
@@ -120,24 +121,17 @@ const config = {
     registrationFeeUsdc: resolveRegistrationFeeBaseUnits()
   },
 
-  // Agent0 (ERC-8004) identity
-  agent0: {
-    chainId: parseIntOrNull(process.env.AGENT0_CHAIN_ID),
-    rpcUrl: process.env.AGENT0_RPC_URL || process.env.BASE_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
-    identityContract: process.env.AGENT0_IDENTITY_CONTRACT,
-    ipfsProvider: process.env.AGENT0_IPFS_PROVIDER || process.env.IPFS_PROVIDER || 'pinata',
-    pinataJwt: process.env.PINATA_JWT,
-    filecoinToken: process.env.FILECOIN_TOKEN,
-    subgraphUrl: process.env.AGENT0_SUBGRAPH_URL,
-    adapterPath: process.env.AGENT0_ADAPTER_PATH,
-    mockMode: process.env.AGENT0_MOCK === 'true' || (!process.env.AGENT0_IDENTITY_CONTRACT && process.env.NODE_ENV !== 'production')
-  },
-
   // ERC-8004 identity (optional)
   erc8004: {
-    registryAddress: process.env.ERC8004_REGISTRY_ADDRESS,
-    rpcUrl: process.env.ERC8004_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
-    chainId: process.env.ERC8004_CHAIN_ID ? parseInt(process.env.ERC8004_CHAIN_ID, 10) : null,
+    identityRegistryAddress: process.env.ERC8004_IDENTITY_REGISTRY_ADDRESS || process.env.ERC8004_REGISTRY_ADDRESS,
+    reputationRegistryAddress: process.env.ERC8004_REPUTATION_REGISTRY_ADDRESS || null,
+    rpcUrl: process.env.ERC8004_RPC_URL
+      || process.env.BASE_RPC_URL
+      || process.env.BASE_SEPOLIA_RPC_URL
+      || 'https://sepolia.base.org',
+    chainId: parseIntOrNull(process.env.ERC8004_CHAIN_ID)
+      || parseIntOrNull(process.env.BLOCKCHAIN_CHAIN_ID)
+      || parseIntOrNull(process.env.BASE_CHAIN_ID),
     authRequired: process.env.ERC8004_AUTH_REQUIRED
       ? process.env.ERC8004_AUTH_REQUIRED === 'true'
       : process.env.NODE_ENV === 'production',
@@ -169,12 +163,8 @@ function validateConfig() {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
 
-  if (config.erc8004?.authRequired && !config.erc8004.registryAddress) {
-    console.warn('[config] ERC8004_AUTH_REQUIRED is enabled but ERC8004_REGISTRY_ADDRESS is not set.');
-  }
-
-  if (!config.agent0?.mockMode && !config.agent0?.identityContract) {
-    console.warn('[config] Agent0 identity contract not configured; set AGENT0_IDENTITY_CONTRACT or AGENT0_MOCK=true.');
+  if (config.erc8004?.authRequired && !config.erc8004.identityRegistryAddress) {
+    console.warn('[config] ERC8004_AUTH_REQUIRED is enabled but ERC8004_IDENTITY_REGISTRY_ADDRESS is not set.');
   }
 
   if (!config.blockchain?.registryAddress) {

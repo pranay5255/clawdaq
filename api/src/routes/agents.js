@@ -9,7 +9,7 @@ const { requireAuth, optionalAuth } = require('../middleware/auth');
 const { success, created } = require('../utils/response');
 const AgentService = require('../services/AgentService');
 const ERC8004Service = require('../services/ERC8004Service');
-const Agent0Service = require('../services/Agent0Service');
+const ERC8004IdentityService = require('../services/ERC8004IdentityService');
 const BlockchainService = require('../services/BlockchainService');
 const { NotFoundError, BadRequestError } = require('../utils/errors');
 const { ethers } = require('ethers');
@@ -39,6 +39,43 @@ function loadRegisterGasMessage() {
     };
   }
 }
+
+function isValidAddress(value) {
+  return /^0x[a-fA-F0-9]{40}$/.test(value);
+}
+
+/**
+ * GET /agents/registration-loading.json
+ * Public metadata URI used during registration.
+ */
+router.get('/registration-loading.json', asyncHandler(async (_req, res) => {
+  res.json(ERC8004IdentityService.buildLoadingRegistrationMetadata());
+}));
+
+/**
+ * GET /agents/:id/registration.json
+ * Public metadata URI for finalized registrations.
+ */
+router.get('/:id/registration.json', asyncHandler(async (req, res) => {
+  let normalizedAgentId;
+  try {
+    normalizedAgentId = BigInt(String(req.params.id)).toString();
+  } catch (error) {
+    throw new BadRequestError('id must be a valid uint256 value');
+  }
+
+  const agent = await AgentService.findByErc8004AgentId(normalizedAgentId);
+
+  if (!agent) {
+    return res.json(
+      ERC8004IdentityService.buildLoadingRegistrationMetadata({ agentId: normalizedAgentId })
+    );
+  }
+
+  return res.json(
+    ERC8004IdentityService.buildFinalRegistrationMetadata(agent)
+  );
+}));
 
 /**
  * POST /agents/register
@@ -72,29 +109,16 @@ router.post('/register-with-payment', asyncHandler(async (req, res) => {
   const {
     name,
     description = '',
-    txHash,
     payerEoa,
-    walletAddress,
-    agentId,
-    agentUri,
-    metadata = {},
-    mcpEndpoint,
-    a2aEndpoint,
-    skills = [],
-    domains = [],
-    trustModels = []
+    walletAddress
   } = req.body;
 
   if (!config.blockchain?.registryAddress) {
     throw new BadRequestError('REGISTRY_ADDRESS is not configured');
   }
 
-  if (txHash && !/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
-    throw new BadRequestError('Invalid txHash format');
-  }
-
   const payer = payerEoa || walletAddress;
-  if (!payer || !/^0x[a-fA-F0-9]{40}$/.test(payer)) {
+  if (!payer || !isValidAddress(payer)) {
     throw new BadRequestError('payerEoa is required and must be a valid address');
   }
 
@@ -108,40 +132,11 @@ router.post('/register-with-payment', asyncHandler(async (req, res) => {
     throw new BadRequestError('CUSTODIAL_PRIVATE_KEY is not configured');
   }
 
-  let resolvedAgentId = agentId;
-  let resolvedAgentUri = agentUri;
-  let agent0 = null;
-
-  if (resolvedAgentId && resolvedAgentUri) {
-    agent0 = {
-      agentId: resolvedAgentId,
-      agentUri: resolvedAgentUri,
-      metadata
-    };
-  } else {
-    agent0 = await Agent0Service.registerAgent({
-      name: normalized,
-      description,
-      walletAddress: payer,
-      mcpEndpoint,
-      a2aEndpoint,
-      skills,
-      domains,
-      trustModels,
-      metadata
-    });
-    resolvedAgentId = agent0?.agentId;
-    resolvedAgentUri = agent0?.agentUri;
-  }
-
-  if (!resolvedAgentId || !resolvedAgentUri) {
-    throw new BadRequestError('agentId and agentUri are required (provide them or configure Agent0 SDK)');
-  }
+  const loadingUri = ERC8004IdentityService.getLoadingRegistrationUri(req);
 
   const onChain = await BlockchainService.registerAgentOnChain({
-    agentId: resolvedAgentId,
     payerEoa: payer,
-    agentUri: resolvedAgentUri,
+    agentUri: loadingUri,
     ownerPrivateKey: custodialKey
   });
 
@@ -149,16 +144,32 @@ router.post('/register-with-payment', asyncHandler(async (req, res) => {
     throw new Error(onChain?.message || onChain?.error || 'Failed to register agent on-chain');
   }
 
+  const desiredFinalUri = ERC8004IdentityService.getFinalRegistrationUri(req, onChain.agentId);
+  let resolvedAgentUri = loadingUri;
+  let uriUpdate = null;
+
+  if (desiredFinalUri !== loadingUri) {
+    uriUpdate = await BlockchainService.setAgentUri(
+      onChain.agentId,
+      desiredFinalUri,
+      custodialKey
+    );
+
+    if (uriUpdate?.success) {
+      resolvedAgentUri = desiredFinalUri;
+    }
+  }
+
+  const resolvedChainId = config.erc8004?.chainId || config.blockchain?.chainId || null;
   const result = await AgentService.registerWithPayment({
     name: normalized,
     description,
-    txHash,
     payerEoa: payer,
-    agent0: {
-      chainId: config.agent0?.chainId,
-      agentId: resolvedAgentId,
+    erc8004: {
+      chainId: resolvedChainId,
+      agentId: onChain.agentId,
       agentUri: resolvedAgentUri,
-      metadata: agent0?.metadata || metadata
+      registeredAt: new Date().toISOString()
     }
   });
 
@@ -168,11 +179,19 @@ router.post('/register-with-payment', asyncHandler(async (req, res) => {
       agentId: onChain.agentId,
       tokenId: onChain.tokenId,
       blockNumber: onChain.blockNumber,
-      txHash: onChain.transactionHash,
+      registrationTxHash: onChain.transactionHash,
+      setUriTxHash: uriUpdate?.success ? uriUpdate.transactionHash : null,
       payer
     },
-    agent0: {
-      agentId: resolvedAgentId,
+    registrationUris: {
+      loading: loadingUri,
+      final: desiredFinalUri,
+      active: resolvedAgentUri,
+      status: resolvedAgentUri === desiredFinalUri ? 'ready' : 'loading'
+    },
+    erc8004: {
+      chainId: resolvedChainId,
+      agentId: onChain.agentId,
       agentUri: resolvedAgentUri
     }
   });
@@ -291,13 +310,26 @@ async function handleVerifyErc8004(req, res) {
     throw new BadRequestError('Signature does not match wallet address');
   }
 
-  const onChainWallet = await ERC8004Service.resolveAgentWallet(normalizedAgentId);
-  if (!onChainWallet) {
-    throw new NotFoundError('ERC-8004 agent');
-  }
+  const [onChainWallet, registryRecord] = await Promise.all([
+    ERC8004Service.resolveAgentWallet(normalizedAgentId),
+    BlockchainService.getAgentRecord(normalizedAgentId)
+  ]);
 
-  if (onChainWallet.toLowerCase() !== walletAddress.toLowerCase()) {
-    throw new BadRequestError('Wallet does not match on-chain agent owner');
+  const walletMatchesIdentity = onChainWallet
+    ? onChainWallet.toLowerCase() === walletAddress.toLowerCase()
+    : false;
+  const walletMatchesPayer = registryRecord?.payerEoa
+    ? registryRecord.payerEoa.toLowerCase() === walletAddress.toLowerCase()
+    : false;
+
+  if (!walletMatchesIdentity && !walletMatchesPayer) {
+    if (!onChainWallet && !registryRecord?.isRegistered) {
+      throw new NotFoundError('ERC-8004 agent');
+    }
+
+    throw new BadRequestError(
+      'Wallet does not match identity owner or custodial payer record'
+    );
   }
 
   const existing = await AgentService.findByErc8004AgentId(normalizedAgentId);
@@ -305,7 +337,10 @@ async function handleVerifyErc8004(req, res) {
     throw new BadRequestError('ERC-8004 agent already linked to another account');
   }
 
-  const resolvedUri = agentUri || await ERC8004Service.getAgentUri(normalizedAgentId);
+  const resolvedUri = agentUri
+    || await ERC8004Service.getAgentUri(normalizedAgentId)
+    || registryRecord?.agentUri
+    || null;
   const agent = await AgentService.linkErc8004(req.agent.id, {
     chainId: parsedChainId,
     agentId: normalizedAgentId,
@@ -313,7 +348,10 @@ async function handleVerifyErc8004(req, res) {
     agentUri: resolvedUri
   });
 
-  success(res, { agent });
+  success(res, {
+    agent,
+    verificationSource: walletMatchesIdentity ? 'identity_owner' : 'registry_payer_eoa'
+  });
 }
 
 /**
@@ -321,12 +359,6 @@ async function handleVerifyErc8004(req, res) {
  * Link and verify an ERC-8004 identity for the current agent
  */
 router.post('/verify-erc8004', requireAuth, asyncHandler(handleVerifyErc8004));
-
-/**
- * POST /agents/verify-agent0
- * Alias for verify-erc8004 until Agent0-specific verification is added
- */
-router.post('/verify-agent0', requireAuth, asyncHandler(handleVerifyErc8004));
 
 /**
  * GET /agents/profile
