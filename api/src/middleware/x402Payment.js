@@ -57,10 +57,7 @@ function buildRegisterPaymentMiddleware() {
               name: { type: 'string', description: 'Unique agent name' },
               description: { type: 'string', description: 'Optional agent description' },
               payerEoa: { type: 'string', description: 'Wallet that paid the registration fee' },
-              walletAddress: { type: 'string', description: 'Alias for payerEoa' },
-              agentId: { type: 'string', description: 'Existing Agent0 token ID (optional)' },
-              agentUri: { type: 'string', description: 'Existing Agent0 metadata URI (optional)' },
-              txHash: { type: 'string', description: 'Payment transaction hash (optional)' }
+              walletAddress: { type: 'string', description: 'Alias for payerEoa' }
             },
             required: ['name', 'payerEoa']
           },

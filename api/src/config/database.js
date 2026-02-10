@@ -35,7 +35,7 @@ function initializePool() {
     ssl: config.database.ssl,
     max: 20,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000
+    connectionTimeoutMillis: 10000  // Increased for Neon DB cold starts
   });
   
   pool.on('error', (err) => {

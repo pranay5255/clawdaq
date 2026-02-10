@@ -9,7 +9,7 @@ const { requireAuth, optionalAuth } = require('../middleware/auth');
 const { success, created } = require('../utils/response');
 const AgentService = require('../services/AgentService');
 const ERC8004Service = require('../services/ERC8004Service');
-const Agent0Service = require('../services/Agent0Service');
+const ERC8004IdentityService = require('../services/ERC8004IdentityService');
 const BlockchainService = require('../services/BlockchainService');
 const { NotFoundError, BadRequestError } = require('../utils/errors');
 const { ethers } = require('ethers');
@@ -72,25 +72,13 @@ router.post('/register-with-payment', asyncHandler(async (req, res) => {
   const {
     name,
     description = '',
-    txHash,
     payerEoa,
     walletAddress,
-    agentId,
-    agentUri,
-    metadata = {},
-    mcpEndpoint,
-    a2aEndpoint,
-    skills = [],
-    domains = [],
-    trustModels = []
+    metadata = {}
   } = req.body;
 
   if (!config.blockchain?.registryAddress) {
     throw new BadRequestError('REGISTRY_ADDRESS is not configured');
-  }
-
-  if (txHash && !/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
-    throw new BadRequestError('Invalid txHash format');
   }
 
   const payer = payerEoa || walletAddress;
@@ -108,40 +96,12 @@ router.post('/register-with-payment', asyncHandler(async (req, res) => {
     throw new BadRequestError('CUSTODIAL_PRIVATE_KEY is not configured');
   }
 
-  let resolvedAgentId = agentId;
-  let resolvedAgentUri = agentUri;
-  let agent0 = null;
-
-  if (resolvedAgentId && resolvedAgentUri) {
-    agent0 = {
-      agentId: resolvedAgentId,
-      agentUri: resolvedAgentUri,
-      metadata
-    };
-  } else {
-    agent0 = await Agent0Service.registerAgent({
-      name: normalized,
-      description,
-      walletAddress: payer,
-      mcpEndpoint,
-      a2aEndpoint,
-      skills,
-      domains,
-      trustModels,
-      metadata
-    });
-    resolvedAgentId = agent0?.agentId;
-    resolvedAgentUri = agent0?.agentUri;
-  }
-
-  if (!resolvedAgentId || !resolvedAgentUri) {
-    throw new BadRequestError('agentId and agentUri are required (provide them or configure Agent0 SDK)');
-  }
+  // DG-1: mint with loading URI, then update to final ID-based URI once tokenId is known.
+  const pendingAgentUri = ERC8004IdentityService.generatePendingAgentUri();
 
   const onChain = await BlockchainService.registerAgentOnChain({
-    agentId: resolvedAgentId,
     payerEoa: payer,
-    agentUri: resolvedAgentUri,
+    agentUri: pendingAgentUri,
     ownerPrivateKey: custodialKey
   });
 
@@ -149,16 +109,30 @@ router.post('/register-with-payment', asyncHandler(async (req, res) => {
     throw new Error(onChain?.message || onChain?.error || 'Failed to register agent on-chain');
   }
 
+  const finalAgentUri = ERC8004IdentityService.generateFinalAgentUri(onChain.agentId);
+  let uriUpdateTxHash = null;
+  if (finalAgentUri !== pendingAgentUri) {
+    const uriUpdate = await BlockchainService.setAgentIdentity(
+      onChain.agentId,
+      payer,
+      finalAgentUri,
+      custodialKey
+    );
+    if (!uriUpdate?.success) {
+      throw new Error(uriUpdate?.error || 'Failed to update final agent URI on-chain');
+    }
+    uriUpdateTxHash = uriUpdate.transactionHash || null;
+  }
+
   const result = await AgentService.registerWithPayment({
     name: normalized,
     description,
-    txHash,
     payerEoa: payer,
-    agent0: {
-      chainId: config.agent0?.chainId,
-      agentId: resolvedAgentId,
-      agentUri: resolvedAgentUri,
-      metadata: agent0?.metadata || metadata
+    erc8004: {
+      chainId: config.erc8004?.chainId,
+      agentId: onChain.agentId,
+      agentUri: finalAgentUri,
+      metadata
     }
   });
 
@@ -169,12 +143,48 @@ router.post('/register-with-payment', asyncHandler(async (req, res) => {
       tokenId: onChain.tokenId,
       blockNumber: onChain.blockNumber,
       txHash: onChain.transactionHash,
+      uriUpdateTxHash,
       payer
     },
-    agent0: {
-      agentId: resolvedAgentId,
-      agentUri: resolvedAgentUri
+    erc8004: {
+      chainId: config.erc8004?.chainId,
+      agentId: onChain.agentId,
+      agentUri: finalAgentUri
     }
+  });
+}));
+
+/**
+ * GET /agents/registration-loading.json
+ * Public placeholder metadata while URI is being finalized.
+ */
+router.get('/registration-loading.json', asyncHandler(async (_req, res) => {
+  res.json({
+    status: 'loading',
+    message: 'Agent metadata URI is being finalized. Retry shortly.'
+  });
+}));
+
+/**
+ * GET /agents/:id/registration.json
+ * Backward-compatible ID-based metadata endpoint.
+ */
+router.get('/:id/registration.json', asyncHandler(async (req, res) => {
+  const agentId = String(req.params.id || '').trim();
+  if (!/^\d+$/.test(agentId)) throw new NotFoundError('Agent');
+
+  const agent = await AgentService.findByErc8004AgentId(agentId);
+  if (!agent) throw new NotFoundError('Agent');
+
+  const baseUrl = (config.clawdaq?.baseUrl || 'https://www.clawdaq.xyz').replace(/\/+$/, '');
+  res.json({
+    name: agent.name,
+    description: agent.description || '',
+    payerEoa: agent.payer_eoa || null,
+    chainId: agent.erc8004_chain_id || null,
+    agentId: agent.erc8004_agent_id || null,
+    registeredAt: agent.erc8004_registered_at || agent.created_at,
+    clawdaqProfile: `${baseUrl}/agents/${agent.name}`
   });
 }));
 
@@ -296,8 +306,16 @@ async function handleVerifyErc8004(req, res) {
     throw new NotFoundError('ERC-8004 agent');
   }
 
-  if (onChainWallet.toLowerCase() !== walletAddress.toLowerCase()) {
-    throw new BadRequestError('Wallet does not match on-chain agent owner');
+  let walletMatches = onChainWallet.toLowerCase() === walletAddress.toLowerCase();
+  if (!walletMatches) {
+    // Custodial fallback: payer_eoa is tracked on the custodial registry.
+    const record = await BlockchainService.getAgentRecord(normalizedAgentId);
+    const payerEoa = record?.payerEoa;
+    walletMatches = Boolean(payerEoa && payerEoa.toLowerCase() === walletAddress.toLowerCase());
+  }
+
+  if (!walletMatches) {
+    throw new BadRequestError('Wallet does not match on-chain owner or custodial payer');
   }
 
   const existing = await AgentService.findByErc8004AgentId(normalizedAgentId);
@@ -324,7 +342,7 @@ router.post('/verify-erc8004', requireAuth, asyncHandler(handleVerifyErc8004));
 
 /**
  * POST /agents/verify-agent0
- * Alias for verify-erc8004 until Agent0-specific verification is added
+ * Legacy alias for verify-erc8004
  */
 router.post('/verify-agent0', requireAuth, asyncHandler(handleVerifyErc8004));
 

@@ -5,13 +5,14 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js",
+    "dev": "NODE_ENV=development node -r dotenv/config --watch src/index.js dotenv_config_path=.env.local",
     "test": "node test/api.test.js",
     "smoke:api": "node scripts/smoke-api.js",
     "lint": "eslint src/",
     "db:migrate": "node scripts/migrate.js",
     "db:migrate:erc8004": "node scripts/migrate-erc8004.js",
     "db:seed": "node scripts/seed.js",
+    "reputation:sync": "node scripts/aggregate-reputation.js",
     "generate:register-gas": "node scripts/generate-register-gas-message.js",
     "types:generate": "npx @databases/pg-schema-cli --database $DATABASE_URL --directory src/types"
   },
