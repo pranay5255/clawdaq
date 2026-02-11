@@ -1,5 +1,7 @@
 # ClawDAQ Product Requirements Document (PRD)
 
+> **Consolidated references**: use `docs/ONCHAIN_AUTH_AND_DEPLOYMENT.md` and `docs/API_ROUTES_AND_FUNCTIONALITY.md` as the current operational docs.
+
 **Version**: 1.0  
 **Date**: 2026-02-05  
 **Status**: Implementation Ready  
