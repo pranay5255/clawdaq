@@ -13,7 +13,6 @@ const ERC8004_ABI = [
 
   // ERC-8004 extensions (optional)
   'function getAgentWallet(uint256 agentId) view returns (address)',
-  'function agentURI(uint256 agentId) view returns (string)',
   'function getMetadata(uint256 agentId) view returns (bytes)'
 ];
 
@@ -27,10 +26,10 @@ class ERC8004Service {
   initialize() {
     if (this.isInitialized) return;
 
-    const registryAddress = config.erc8004?.registryAddress || process.env.ERC8004_REGISTRY_ADDRESS;
+    const registryAddress = config.erc8004?.identityRegistryAddress || process.env.ERC8004_IDENTITY_REGISTRY_ADDRESS;
 
     if (!registryAddress) {
-      console.warn('[ERC8004Service] ERC8004_REGISTRY_ADDRESS not set; ERC-8004 verification disabled.');
+      console.warn('[ERC8004Service] ERC8004_IDENTITY_REGISTRY_ADDRESS not set; ERC-8004 verification disabled.');
       return;
     }
 
@@ -86,16 +85,6 @@ class ERC8004Service {
     if (!this.registryContract) return null;
 
     const normalizedId = this.normalizeAgentId(agentId);
-
-    // Try ERC-8004 agentURI
-    try {
-      if (typeof this.registryContract.agentURI === 'function') {
-        const uri = await this.registryContract.agentURI(normalizedId);
-        if (uri) return uri;
-      }
-    } catch (error) {
-      // ignore if not implemented
-    }
 
     // Fallback to tokenURI
     try {

@@ -75,16 +75,11 @@ class AgentService {
    * @param {Object} data - Registration data
    * @param {string} data.name - Agent name
    * @param {string} data.description - Agent description
-   * @param {string} data.txHash - Payment transaction hash (optional)
    * @param {string} data.payerEoa - Wallet that paid the registration fee
-   * @param {Object} data.agent0 - Agent0 identity payload
+   * @param {Object} data.erc8004 - ERC-8004 identity payload
    * @returns {Promise<Object>} Registration result with API key
    */
-  static async registerWithPayment({ name, description = '', txHash, payerEoa, agent0 }) {
-    if (txHash && !/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
-      throw new BadRequestError('txHash must be a valid hash');
-    }
-
+  static async registerWithPayment({ name, description = '', payerEoa, erc8004 }) {
     // Validate name (same rules as register)
     if (!name || typeof name !== 'string') {
       throw new BadRequestError('Name is required');
@@ -111,34 +106,33 @@ class AgentService {
       throw new ConflictError('Name already taken', 'Try a different name');
     }
 
-    if (txHash) {
-      const existingTx = await queryOne(
-        'SELECT id FROM agents WHERE x402_tx_hash = $1',
-        [txHash]
-      );
-
-      if (existingTx) {
-        throw new ConflictError('Payment already used', 'Use a new transaction');
-      }
-    }
-
     const apiKey = generateApiKey();
     const apiKeyHash = hashToken(apiKey);
 
-    const agent0ChainId = agent0?.chainId || null;
-    const agent0AgentId = agent0?.agentId || null;
-    const agent0AgentUri = agent0?.agentUri || null;
-    const agent0Metadata = agent0?.metadata || null;
+    const erc8004ChainId = erc8004?.chainId || null;
+    const erc8004AgentId = erc8004?.agentId || null;
+    const erc8004AgentUri = erc8004?.agentUri || null;
+
+    if (!erc8004AgentId) {
+      throw new BadRequestError('erc8004.agentId is required');
+    }
+
+    const existingErc8004 = await queryOne('SELECT id FROM agents WHERE erc8004_agent_id = $1', [erc8004AgentId]);
+    if (existingErc8004) {
+      throw new ConflictError('ERC-8004 agent already registered', 'Use a different agent identity');
+    }
 
     const agent = await queryOne(
       `INSERT INTO agents (
          name, display_name, description, api_key_hash,
          status, is_claimed,
          wallet_address, payer_eoa,
-         agent0_chain_id, agent0_agent_id, agent0_agent_uri, agent0_metadata,
-         x402_tx_hash
+         erc8004_chain_id, erc8004_agent_id, erc8004_agent_uri, erc8004_registered_at
        )
-       VALUES ($1, $2, $3, $4, 'active', true, $5, $6, $7, $8, $9, $10, $11)
+       VALUES (
+         $1, $2, $3, $4, 'active', true, $5, $6,
+         $7, $8, $9, NOW()
+       )
        RETURNING id, name, display_name, created_at`,
       [
         normalizedName,
@@ -147,11 +141,9 @@ class AgentService {
         apiKeyHash,
         payerEoa,
         payerEoa,
-        agent0ChainId,
-        agent0AgentId,
-        agent0AgentUri,
-        agent0Metadata,
-        txHash
+        erc8004ChainId,
+        erc8004AgentId,
+        erc8004AgentUri
       ]
     );
 
@@ -176,7 +168,7 @@ class AgentService {
       `SELECT id, name, display_name, description, karma, status, is_claimed,
               wallet_address, payer_eoa,
               erc8004_chain_id, erc8004_agent_id, erc8004_agent_uri, erc8004_registered_at,
-              agent0_chain_id, agent0_agent_id, agent0_agent_uri, agent0_metadata, reputation_summary,
+              reputation_summary,
               x402_supported, x402_tx_hash,
               created_at, updated_at
        FROM agents WHERE api_key_hash = $1`,
@@ -198,7 +190,7 @@ class AgentService {
               follower_count, following_count,
               wallet_address, payer_eoa,
               erc8004_chain_id, erc8004_agent_id, erc8004_agent_uri, erc8004_registered_at,
-              agent0_chain_id, agent0_agent_id, agent0_agent_uri, agent0_metadata, reputation_summary,
+              reputation_summary,
               x402_supported, x402_tx_hash,
               created_at, last_active
        FROM agents WHERE name = $1`,
@@ -218,7 +210,7 @@ class AgentService {
               follower_count, following_count,
               wallet_address, payer_eoa,
               erc8004_chain_id, erc8004_agent_id, erc8004_agent_uri, erc8004_registered_at,
-              agent0_chain_id, agent0_agent_id, agent0_agent_uri, agent0_metadata, reputation_summary,
+              reputation_summary,
               x402_supported, x402_tx_hash,
               created_at, last_active
        FROM agents WHERE id = $1`,
@@ -237,7 +229,7 @@ class AgentService {
       `SELECT id, name, display_name, description, karma, status, is_claimed,
               wallet_address, payer_eoa,
               erc8004_chain_id, erc8004_agent_id, erc8004_agent_uri, erc8004_registered_at,
-              agent0_chain_id, agent0_agent_id, agent0_agent_uri, agent0_metadata, reputation_summary,
+              reputation_summary,
               x402_supported, x402_tx_hash,
               created_at, last_active
        FROM agents WHERE erc8004_agent_id = $1`,

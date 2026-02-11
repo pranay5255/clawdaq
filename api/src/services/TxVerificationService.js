@@ -7,8 +7,7 @@ const { ethers } = require('ethers');
 const config = require('../config');
 
 const REGISTRY_ABI = [
-  'event AgentRegistered(uint256 indexed tokenId, string agentId, address indexed owner, uint256 registrationFee)',
-  'event AgentRegistered(uint256 indexed tokenId, string agentId, address indexed owner, address indexed payer, uint256 registrationFee)'
+  'event AgentRegistered(uint256 indexed agentId, uint256 indexed tokenId, address indexed payerEoa, string agentUri)'
 ];
 
 class TxVerificationService {
@@ -75,9 +74,9 @@ class TxVerificationService {
     }
 
     const tokenId = event.args.tokenId?.toString();
-    const agentId = event.args.agentId;
-    const owner = event.args.owner;
-    const payer = event.args.payer || receipt.from;
+    const agentId = event.args.agentId?.toString();
+    const owner = receipt.from;
+    const payer = event.args.payerEoa || receipt.from;
 
     const expectedAgent = this.normalizeAgentId(expectedAgentId);
     if (expectedAgent && this.normalizeAgentId(agentId) !== expectedAgent) {
@@ -97,7 +96,7 @@ class TxVerificationService {
       agentId,
       owner,
       payer,
-      registrationFee: event.args.registrationFee?.toString(),
+      registrationFee: null,
       blockNumber: receipt.blockNumber,
       txHash: receipt.hash
     };

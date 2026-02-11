@@ -20,7 +20,7 @@ const REGISTRY_ABI = [
   "function activities(uint256 agentId) view returns (uint256 questionsCount, uint256 answersCount, uint256 upvotesReceived, uint256 downvotesReceived, uint256 lastUpdated)",
 
   // State-changing functions
-  "function registerAgent(uint256 agentId, address payerEoa, string agentUri)",
+  "function registerAgent(address payerEoa, string agentUri) returns (uint256)",
   "function setAgentUri(uint256 agentId, string agentUri)",
   "function setAgentActive(uint256 agentId, bool isActive)",
   "function updateReputation(uint256 agentId, tuple(uint256 agentId, uint256 karma, uint256 questionsAsked, uint256 answersGiven, uint256 acceptedAnswers, uint256 upvotesReceived, uint256 downvotesReceived) update)",
@@ -28,6 +28,7 @@ const REGISTRY_ABI = [
   "function updateAgentActivity(uint256 agentId, uint256 questionsCount, uint256 answersCount, uint256 upvotesReceived, uint256 downvotesReceived)",
   "function batchUpdateActivities(tuple(uint256 agentId, uint256 questionsCount, uint256 answersCount, uint256 upvotesReceived, uint256 downvotesReceived)[] updates)",
   "function withdrawTreasury(uint256 amount, address to)",
+  "function identityRegistry() view returns (address)",
 
   // Events
   "event AgentRegistered(uint256 indexed agentId, uint256 indexed tokenId, address indexed payerEoa, string agentUri)",
@@ -99,7 +100,7 @@ class BlockchainService {
     const raw = typeof agentId === 'number' ? agentId.toString() : String(agentId).trim();
     if (!raw) throw new Error('agentId is required');
     const parsed = BigInt(raw);
-    if (parsed <= 0n) throw new Error('agentId must be greater than 0');
+    if (parsed < 0n) throw new Error('agentId must be greater than or equal to 0');
     return parsed;
   }
 
@@ -134,6 +135,29 @@ class BlockchainService {
       return registered ? normalizedId.toString() : null;
     } catch (error) {
       console.error('[BlockchainService] Error getting token ID:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get raw agent record from the custodial registry.
+   */
+  async getAgentRecord(agentId) {
+    if (!this.isInitialized) this.initialize();
+    if (!this.registryContract) return null;
+
+    try {
+      const normalizedId = this.normalizeAgentId(agentId);
+      const [payerEoa, agentUri, registeredAt, isActive] = await this.registryContract.agents(normalizedId);
+      return {
+        agentId: normalizedId.toString(),
+        payerEoa,
+        agentUri,
+        registeredAt: registeredAt?.toString?.() || String(registeredAt),
+        isActive: Boolean(isActive)
+      };
+    } catch (error) {
+      console.error('[BlockchainService] Error getting agent record:', error);
       return null;
     }
   }
@@ -254,16 +278,15 @@ class BlockchainService {
 
   /**
    * Register an agent on the blockchain
-   * This is the main integration point - called after backend registration
+   * This is the main integration point after payment + URI generation.
    * 
    * @param {Object} params - Registration payload
-   * @param {string|number|bigint} params.agentId - Agent0 token ID
    * @param {string} params.payerEoa - Wallet that paid the registration fee
    * @param {string} params.agentUri - Agent metadata URI
    * @param {string} params.ownerPrivateKey - Registry owner private key
    * @returns {Promise<Object>} Registration result
    */
-  async registerAgentOnChain({ agentId, payerEoa, agentUri, ownerPrivateKey }) {
+  async registerAgentOnChain({ payerEoa, agentUri, ownerPrivateKey }) {
     if (!this.isInitialized) this.initialize();
     if (!this.registryContract) {
       throw new Error('Blockchain service not initialized');
@@ -277,29 +300,20 @@ class BlockchainService {
       throw new Error('payerEoa is required');
     }
 
-    const normalizedId = this.normalizeAgentId(agentId);
+    if (!agentUri || typeof agentUri !== 'string') {
+      throw new Error('agentUri is required');
+    }
+
     const signer = this.getSigner(ownerPrivateKey);
     const registryWithSigner = this.registryContract.connect(signer);
 
     try {
-      // Check if already registered
-      const isRegistered = await this.isAgentRegistered(normalizedId);
-      if (isRegistered) {
-        const tokenId = await this.getTokenId(normalizedId);
-        return {
-          success: false,
-          alreadyRegistered: true,
-          tokenId: tokenId,
-          message: 'Agent already registered on blockchain'
-        };
-      }
-
       // Register agent
       console.log('[BlockchainService] Registering agent on blockchain...');
-      const tx = await registryWithSigner.registerAgent(normalizedId, payerEoa, agentUri || '');
+      const tx = await registryWithSigner.registerAgent(payerEoa, agentUri);
       const receipt = await tx.wait();
 
-      // Parse event to get token ID
+      // Parse event to get canonical agent ID / token ID from the contract.
       const event = receipt.logs
         .map(log => {
           try {
@@ -310,12 +324,17 @@ class BlockchainService {
         })
         .find(parsed => parsed && parsed.name === 'AgentRegistered');
 
-      const tokenId = event ? event.args.tokenId.toString() : normalizedId.toString();
+      const agentId = event?.args?.agentId?.toString();
+      const tokenId = event?.args?.tokenId?.toString() || agentId;
+
+      if (!agentId || !tokenId) {
+        throw new Error('AgentRegistered event missing from receipt');
+      }
 
       return {
         success: true,
-        agentId: normalizedId.toString(),
-        tokenId: tokenId,
+        agentId,
+        tokenId,
         transactionHash: receipt.hash,
         blockNumber: receipt.blockNumber,
         gasUsed: receipt.gasUsed.toString(),
@@ -325,15 +344,6 @@ class BlockchainService {
 
     } catch (error) {
       console.error('[BlockchainService] Registration error:', error);
-      
-      // Parse common errors
-      if (error.message.includes('AgentAlreadyRegistered')) {
-        return {
-          success: false,
-          error: 'ALREADY_REGISTERED',
-          message: 'Agent already registered on blockchain'
-        };
-      }
 
       return {
         success: false,
