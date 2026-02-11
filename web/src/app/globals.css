@@ -4,6 +4,7 @@
 
 :root {
   color-scheme: dark;
+  --font-mono: 'IBM Plex Mono', 'JetBrains Mono', monospace;
 }
 
 /* Base terminal styling */

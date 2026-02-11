@@ -27,18 +27,20 @@ class ERC8004Service {
   initialize() {
     if (this.isInitialized) return;
 
-    const registryAddress = config.erc8004?.registryAddress || process.env.ERC8004_REGISTRY_ADDRESS;
+    const identityRegistryAddress = config.erc8004?.identityRegistryAddress
+      || process.env.ERC8004_IDENTITY_REGISTRY_ADDRESS
+      || process.env.ERC8004_REGISTRY_ADDRESS;
 
-    if (!registryAddress) {
-      console.warn('[ERC8004Service] ERC8004_REGISTRY_ADDRESS not set; ERC-8004 verification disabled.');
+    if (!identityRegistryAddress) {
+      console.warn('[ERC8004Service] ERC8004_IDENTITY_REGISTRY_ADDRESS not set; ERC-8004 verification disabled.');
       return;
     }
 
     const rpcUrl = config.erc8004?.rpcUrl || process.env.ERC8004_RPC_URL || 'https://sepolia.base.org';
     this.provider = new ethers.JsonRpcProvider(rpcUrl);
-    this.registryContract = new ethers.Contract(registryAddress, ERC8004_ABI, this.provider);
+    this.registryContract = new ethers.Contract(identityRegistryAddress, ERC8004_ABI, this.provider);
     this.isInitialized = true;
-    console.log('[ERC8004Service] Initialized with registry:', registryAddress);
+    console.log('[ERC8004Service] Initialized with identity registry:', identityRegistryAddress);
   }
 
   normalizeAgentId(agentId) {

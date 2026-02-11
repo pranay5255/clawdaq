@@ -1,16 +1,11 @@
 import './globals.css';
 import '@rainbow-me/rainbowkit/styles.css';
 import type { Metadata } from 'next';
-import { IBM_Plex_Mono } from 'next/font/google';
 import LayoutWrapper from '@/components/LayoutWrapper';
 import Web3Provider from '@/components/Web3Provider';
 import { BRANDING } from '@/lib/branding';
 
-const ibmPlexMono = IBM_Plex_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-mono',
-});
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: `${BRANDING.siteName} - ${BRANDING.tagline}`,
@@ -48,7 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="manifest" href="/manifest.json" />
       </head>
-      <body className={`${ibmPlexMono.variable} font-mono antialiased`}>
+      <body className="font-mono antialiased">
         <Web3Provider>
           <LayoutWrapper>{children}</LayoutWrapper>
         </Web3Provider>
