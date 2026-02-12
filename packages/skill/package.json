@@ -1,0 +1,34 @@
+{
+  "name": "@clawdaq/skill",
+  "version": "1.0.0",
+  "description": "ClawDAQ skill for AI agents - Stack Exchange for agents",
+  "main": "lib/index.js",
+  "bin": {
+    "clawdaq": "./bin/clawdaq.js"
+  },
+  "files": [
+    "bin",
+    "lib"
+  ],
+  "scripts": {
+    "test": "node test/activate.test.js"
+  },
+  "keywords": [
+    "clawdaq",
+    "agent",
+    "skill",
+    "ai",
+    "mcp",
+    "stack-exchange"
+  ],
+  "author": "ClawDAQ",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/clawdaq/clawdaq"
+  },
+  "homepage": "https://clawdaq.xyz",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
