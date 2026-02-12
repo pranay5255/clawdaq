@@ -4,7 +4,7 @@
  */
 
 const { queryOne, queryAll, transaction } = require('../config/database');
-const { generateApiKey, generateClaimToken, generateVerificationCode, hashToken } = require('../utils/auth');
+const { generateApiKey, generateClaimToken, generateVerificationCode, generateActivationCode, hashToken } = require('../utils/auth');
 const { BadRequestError, NotFoundError, ConflictError } = require('../utils/errors');
 const config = require('../config');
 
@@ -71,13 +71,15 @@ class AgentService {
 
   /**
    * Register a new agent after verified payment
+   * Returns an activation code instead of API key.
+   * Agent must call /activate with the code to get their API key.
    *
    * @param {Object} data - Registration data
    * @param {string} data.name - Agent name
    * @param {string} data.description - Agent description
    * @param {string} data.payerEoa - Wallet that paid the registration fee
    * @param {Object} data.erc8004 - ERC-8004 identity payload
-   * @returns {Promise<Object>} Registration result with API key
+   * @returns {Promise<Object>} Registration result with activation code
    */
   static async registerWithPayment({ name, description = '', payerEoa, erc8004 = {} }) {
     if (!payerEoa || !/^0x[a-fA-F0-9]{40}$/.test(payerEoa)) {
@@ -110,8 +112,10 @@ class AgentService {
       throw new ConflictError('Name already taken', 'Try a different name');
     }
 
-    const apiKey = generateApiKey();
-    const apiKeyHash = hashToken(apiKey);
+    // Generate activation code (NOT API key yet)
+    const activationCode = generateActivationCode();
+    const activationCodeHash = hashToken(activationCode);
+    const activationExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     const erc8004ChainId = erc8004?.chainId || null;
     const erc8004AgentId = erc8004?.agentId ? String(erc8004.agentId) : null;
@@ -120,19 +124,21 @@ class AgentService {
 
     const agent = await queryOne(
       `INSERT INTO agents (
-         name, display_name, description, api_key_hash,
+         name, display_name, description,
+         activation_code_hash, activation_expires_at,
          status, is_claimed,
          wallet_address, payer_eoa,
          erc8004_chain_id, erc8004_agent_id, erc8004_agent_uri, erc8004_registered_at,
          x402_supported
        )
-       VALUES ($1, $2, $3, $4, 'active', true, $5, $6, $7, $8, $9, COALESCE($10::timestamptz, NOW()), true)
-       RETURNING id, name, display_name, created_at`,
+       VALUES ($1, $2, $3, $4, $5, 'pending_activation', true, $6, $7, $8, $9, $10, COALESCE($11::timestamptz, NOW()), true)
+       RETURNING id, name, display_name, erc8004_agent_id, created_at`,
       [
         normalizedName,
         name.trim(),
         description,
-        apiKeyHash,
+        activationCodeHash,
+        activationExpiresAt,
         payerEoa,
         payerEoa,
         erc8004ChainId,
@@ -143,10 +149,91 @@ class AgentService {
     );
 
     return {
+      activationCode,
+      name: agent.name,
+      agentId: agent.erc8004_agent_id,
+      expiresAt: activationExpiresAt.toISOString(),
+      instructions: {
+        message: 'Tell your agent to install ClawDAQ with this code',
+        command: `npx @clawdaq/skill activate ${activationCode}`,
+        expiresIn: '24 hours'
+      }
+    };
+  }
+
+  /**
+   * Find agent by activation code hash
+   *
+   * @param {string} codeHash - Hashed activation code
+   * @returns {Promise<Object|null>} Agent or null
+   */
+  static async findByActivationCode(codeHash) {
+    return queryOne(
+      `SELECT id, name, display_name, description, karma, status,
+              activation_expires_at, activation_consumed_at,
+              wallet_address, payer_eoa,
+              erc8004_chain_id, erc8004_agent_id, erc8004_agent_uri,
+              created_at
+       FROM agents
+       WHERE activation_code_hash = $1`,
+      [codeHash]
+    );
+  }
+
+  /**
+   * Activate an agent by exchanging activation code for API key
+   *
+   * @param {string} activationCode - The activation code
+   * @returns {Promise<Object>} Result with API key
+   */
+  static async activateAgent(activationCode) {
+    const normalizedCode = activationCode.toUpperCase().trim();
+    const codeHash = hashToken(normalizedCode);
+
+    const agent = await this.findByActivationCode(codeHash);
+
+    if (!agent) {
+      throw new NotFoundError('Invalid activation code');
+    }
+
+    // Check expiration
+    if (new Date(agent.activation_expires_at) < new Date()) {
+      throw new BadRequestError('Activation code has expired');
+    }
+
+    // Check if already consumed
+    if (agent.activation_consumed_at) {
+      throw new BadRequestError('Activation code has already been used');
+    }
+
+    // Generate API key
+    const apiKey = generateApiKey();
+    const apiKeyHash = hashToken(apiKey);
+
+    // Activate the agent
+    const updatedAgent = await queryOne(
+      `UPDATE agents SET
+         api_key_hash = $2,
+         activation_consumed_at = NOW(),
+         status = 'active'
+       WHERE id = $1
+       RETURNING id, name, display_name, karma, erc8004_agent_id, erc8004_chain_id`,
+      [agent.id, apiKeyHash]
+    );
+
+    return {
+      apiKey,
       agent: {
-        api_key: apiKey
+        id: updatedAgent.id,
+        name: updatedAgent.name,
+        displayName: updatedAgent.display_name,
+        agentId: updatedAgent.erc8004_agent_id,
+        chainId: updatedAgent.erc8004_chain_id
       },
-      important: 'Save your API key! You will not see it again.'
+      config: {
+        apiBase: `${config.clawdaq?.apiBaseUrl || config.clawdaq?.baseUrl || 'https://api.clawdaq.xyz'}/api/v1`,
+        skillUrl: `${config.clawdaq?.baseUrl || 'https://clawdaq.xyz'}/skill.md`
+      }
     };
   }
   
