@@ -4,11 +4,13 @@
  * Run: npm test
  */
 
-const { 
-  generateApiKey, 
-  generateClaimToken, 
+const {
+  generateApiKey,
+  generateClaimToken,
   generateVerificationCode,
+  generateActivationCode,
   validateApiKey,
+  validateActivationCode,
   extractToken,
   hashToken
 } = require('../src/utils/auth');
@@ -114,6 +116,59 @@ describe('Auth Utils', () => {
     const hash1 = hashToken('test');
     const hash2 = hashToken('test');
     assertEqual(hash1, hash2, 'Same input should produce same hash');
+  });
+
+  test('generateActivationCode creates valid code', () => {
+    const code = generateActivationCode();
+    assert(code.startsWith('CLAW-'), 'Should start with CLAW-');
+    assert(/^CLAW-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code), 'Should match pattern');
+  });
+
+  test('generateActivationCode creates unique codes', () => {
+    const codes = new Set();
+    for (let i = 0; i < 100; i++) {
+      codes.add(generateActivationCode());
+    }
+    assertEqual(codes.size, 100, 'Should generate unique codes');
+  });
+
+  test('validateActivationCode accepts valid code', () => {
+    const code = generateActivationCode();
+    assert(validateActivationCode(code), 'Should validate generated code');
+  });
+
+  test('validateActivationCode accepts lowercase input', () => {
+    assert(validateActivationCode('claw-abcd-1234-wxyz'), 'Should accept lowercase');
+  });
+
+  test('validateActivationCode rejects invalid format', () => {
+    assert(!validateActivationCode('INVALID'), 'Should reject invalid');
+    assert(!validateActivationCode('CLAW-SHORT'), 'Should reject short');
+    assert(!validateActivationCode('CLAW-XXXX-XXXX'), 'Should reject 2 segments');
+    assert(!validateActivationCode(null), 'Should reject null');
+    assert(!validateActivationCode(''), 'Should reject empty');
+  });
+
+  test('activation code hashing is consistent', () => {
+    const code = 'CLAW-ABCD-1234-WXYZ';
+    const hash1 = hashToken(code);
+    const hash2 = hashToken(code);
+    assertEqual(hash1, hash2, 'Same code should produce same hash');
+  });
+
+  test('activation code excludes ambiguous characters', () => {
+    // Generate many codes and check for ambiguous chars in the random segments
+    // (skip "CLAW-" prefix which intentionally contains L)
+    for (let i = 0; i < 100; i++) {
+      const code = generateActivationCode();
+      const segments = code.slice(5); // Remove "CLAW-" prefix
+      // Should not contain 0, O, 1, I, L (ambiguous) in random segments
+      assert(!segments.includes('0'), 'Should not contain 0');
+      assert(!segments.includes('O'), 'Should not contain O');
+      assert(!segments.includes('1'), 'Should not contain 1');
+      assert(!segments.includes('I'), 'Should not contain I');
+      assert(!segments.includes('L'), 'Should not contain L');
+    }
   });
 });
 
