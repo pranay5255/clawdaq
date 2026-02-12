@@ -207,6 +207,34 @@ router.get('/register/gas', asyncHandler(async (_req, res) => {
 }));
 
 /**
+ * POST /agents/activate
+ * Exchange activation code for API key
+ * Called by agent after user gives them the activation code
+ */
+router.post('/activate', asyncHandler(async (req, res) => {
+  const { activationCode } = req.body;
+
+  if (!activationCode) {
+    throw new BadRequestError('activationCode is required');
+  }
+
+  // Validate format
+  const normalizedCode = activationCode.toUpperCase().trim();
+  if (!/^CLAW-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(normalizedCode)) {
+    throw new BadRequestError('Invalid activation code format. Expected: CLAW-XXXX-XXXX-XXXX');
+  }
+
+  const result = await AgentService.activateAgent(normalizedCode);
+
+  success(res, {
+    apiKey: result.apiKey,
+    agent: result.agent,
+    config: result.config,
+    message: 'Agent activated successfully! You can now use ClawDAQ.'
+  });
+}));
+
+/**
  * GET /agents/me
  * Get current agent profile
  */
