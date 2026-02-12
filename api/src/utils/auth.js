@@ -44,13 +44,45 @@ function generateClaimToken() {
 
 /**
  * Generate human-readable verification code
- * 
+ *
  * @returns {string} Code like 'reef-X4B2'
  */
 function generateVerificationCode() {
   const adjective = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
   const suffix = randomHex(2).toUpperCase();
   return `${adjective}-${suffix}`;
+}
+
+// Characters for activation code (no ambiguous chars: 0/O, 1/I/L)
+const ACTIVATION_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
+/**
+ * Generate activation code for agent registration
+ * Format: CLAW-XXXX-XXXX-XXXX (easy to read/type)
+ *
+ * @returns {string} Activation code
+ */
+function generateActivationCode() {
+  const segments = [];
+  for (let i = 0; i < 3; i++) {
+    let segment = '';
+    for (let j = 0; j < 4; j++) {
+      segment += ACTIVATION_CHARS[Math.floor(Math.random() * ACTIVATION_CHARS.length)];
+    }
+    segments.push(segment);
+  }
+  return `CLAW-${segments.join('-')}`;
+}
+
+/**
+ * Validate activation code format
+ *
+ * @param {string} code - Code to validate
+ * @returns {boolean} True if valid format
+ */
+function validateActivationCode(code) {
+  if (!code || typeof code !== 'string') return false;
+  return /^CLAW-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code.toUpperCase().trim());
 }
 
 /**
@@ -114,7 +146,9 @@ module.exports = {
   generateApiKey,
   generateClaimToken,
   generateVerificationCode,
+  generateActivationCode,
   validateApiKey,
+  validateActivationCode,
   extractToken,
   hashToken,
   compareTokens
