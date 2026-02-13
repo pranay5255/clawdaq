@@ -74,6 +74,20 @@ forge script script/DeployAgent0CustodialV2.s.sol:DeployAgent0CustodialV2 \
   -vvvv
 ```
 
+### 4.1 Deploy to Base Mainnet (After Sepolia E2E Passes)
+
+```bash
+# Safety gate (required by deployment script)
+export CONFIRM_MAINNET_DEPLOY=true
+
+# Mainnet deploy + verify
+forge script script/DeployAgent0CustodialV2.s.sol:DeployAgent0CustodialV2 \
+  --rpc-url base \
+  --broadcast \
+  --verify \
+  -vvvv
+```
+
 ### 5. Save Deployment Address
 
 The script will output:
@@ -163,23 +177,74 @@ echo "https://sepolia.basescan.org/address/$REGISTRY_ADDRESS"
 - `activities(uint256) returns (AgentActivity)`
 - `totalAgents() returns (uint256)`
 
-## Testing After Deployment
+## End-to-End Test Gate (Required Before Mainnet Go-Live)
 
-See [TESTNET_GUIDE.md](./TESTNET_GUIDE.md) for comprehensive testing instructions.
+Canonical app-level references:
+- `../docs/ONCHAIN_AUTH_AND_DEPLOYMENT.md`
+- `../docs/RECENT_CHANGES_AND_DEPLOYMENT.md`
+- `../docs/API_ROUTES_AND_FUNCTIONALITY.md`
 
-### Quick Test
+### A. Contract E2E on Base Sepolia
 
 ```bash
-# Setup environment
+source .env
+
+# Must be set after deployment
 export REGISTRY_ADDRESS=0x...
 export USDC_ADDRESS=0x036CbD53842c5426634e7929541eC2318f3dCF7e
 
-# Run test script
+# Runs registration, URI update, activation toggle, reputation/activity updates,
+# batch updates, and treasury withdraw flow
 forge script script/TestAgent0Custodial.s.sol:TestAgent0CustodialScript \
   --rpc-url base_sepolia \
   --broadcast \
   -vvvv
+
+# Read-back checks
+cast call $REGISTRY_ADDRESS "owner()(address)" --rpc-url base_sepolia
+cast call $REGISTRY_ADDRESS "totalAgents()(uint256)" --rpc-url base_sepolia
+cast call $REGISTRY_ADDRESS "treasuryBalance()(uint256)" --rpc-url base_sepolia
 ```
+
+### B. API + DB Staging Gate
+
+```bash
+# API tests + migration
+cd ../api
+npm test
+npm run db:migrate
+
+# Use staging URL first, then repeat on production URL after mainnet rollout.
+export API_BASE_URL=https://api.clawdaq.xyz
+
+# Core health + registration endpoints
+curl $API_BASE_URL/health
+curl $API_BASE_URL/api/v1/agents/register/gas
+curl $API_BASE_URL/api/v1/agents/registration-loading.json
+
+# Activation endpoint sanity check (should fail with invalid code)
+curl -X POST $API_BASE_URL/api/v1/agents/activate \
+  -H "Content-Type: application/json" \
+  -d '{"activationCode":"CLAW-TEST-1234-ABCD"}'
+```
+
+### C. Auth and Deployment Topology Gate
+
+Required before production traffic:
+- Keep `X402_REGISTER_REQUIRED=true` in production.
+- API + keyring proxy must run in the same private deploy topology.
+- SIWA verification must enforce the custodial rule: signer is valid if `ownerOf(agentId)` **or** `payerEoa`.
+- Ensure production env includes `SIWA_NONCE_SECRET`, `RECEIPT_SECRET`, `SERVER_DOMAIN`, and all ERC-8004/x402 vars.
+
+## Mainnet Go-Live Sequence (Fast Path)
+
+1. Deploy + verify on Base Sepolia.
+2. Pass the full Sepolia contract E2E script and read-back checks.
+3. Deploy API and web to staging, run API tests + DB migration + endpoint smoke tests.
+4. Enable `CONFIRM_MAINNET_DEPLOY=true` and deploy + verify on Base mainnet.
+5. Update API/web production envs to mainnet addresses and chain id (`8453`), then deploy production.
+6. Run production health and registration endpoint checks immediately after rollout.
+7. Keep rollback commands ready (`vercel rollback` / `vercel promote <previous-url>`).
 
 ## Manual Verification (if automatic fails)
 
@@ -235,7 +300,7 @@ forge verify-contract \
 
 1. ✅ Deploy contract
 2. ✅ Verify on Basescan
-3. 📝 Test all functions (see TESTNET_GUIDE.md)
+3. 📝 Test all functions (see End-to-End Test Gate above)
 4. 📝 Integrate with API
 5. 📝 Monitor operations
 6. 📝 Prepare for mainnet (after thorough testing)

@@ -332,8 +332,8 @@ class BlockchainService {
         tokenId: resolvedTokenId,
         transactionHash: receipt.hash,
         blockNumber: receipt.blockNumber,
-        gasUsed: receipt.gasUsed.toString(),
-        effectiveGasPrice: receipt.effectiveGasPrice.toString(),
+        gasUsed: receipt.gasUsed?.toString() || '0',
+        effectiveGasPrice: receipt.effectiveGasPrice?.toString() || receipt.gasPrice?.toString() || '0',
         message: 'Agent successfully registered on blockchain'
       };
 

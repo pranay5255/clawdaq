@@ -148,7 +148,9 @@ router.post('/register-with-payment', asyncHandler(async (req, res) => {
   let resolvedAgentUri = loadingUri;
   let uriUpdate = null;
 
-  if (desiredFinalUri !== loadingUri) {
+  // TEMP: Skip URI update to avoid nonce issues
+  // TODO: Fix nonce management for sequential transactions
+  /* if (desiredFinalUri !== loadingUri) {
     uriUpdate = await BlockchainService.setAgentUri(
       onChain.agentId,
       desiredFinalUri,
@@ -158,7 +160,7 @@ router.post('/register-with-payment', asyncHandler(async (req, res) => {
     if (uriUpdate?.success) {
       resolvedAgentUri = desiredFinalUri;
     }
-  }
+  } */
 
   const resolvedChainId = config.erc8004?.chainId || config.blockchain?.chainId || null;
   const result = await AgentService.registerWithPayment({
