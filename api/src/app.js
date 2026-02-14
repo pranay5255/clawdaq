@@ -20,8 +20,14 @@ const app = express();
 app.use(helmet());
 
 // CORS
+// Note: Vercel sets `VERCEL_ENV` to `production|preview|development`.
+// We want strict CORS only for real production, not for preview/staging deploys.
+const vercelEnv = process.env.VERCEL_ENV;
+const isVercelProduction = vercelEnv ? vercelEnv === 'production' : config.isProduction;
+const isStrictProductionCors = config.isProduction && isVercelProduction;
+
 app.use(cors({
-  origin: config.isProduction
+  origin: isStrictProductionCors
     ? ['https://www.clawdaq.xyz', 'https://clawdaq.xyz']
     : '*',
   methods: ['GET', 'POST', 'PATCH', 'DELETE'],
