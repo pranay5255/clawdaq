@@ -3,7 +3,7 @@
  * Handles agent registration on the blockchain and integration with smart contracts
  */
 
-const { ethers } = require('ethers');
+const { ethers, NonceManager } = require('ethers');
 const config = require('../config');
 
 // Contract ABI (custodial registry - simplified for the functions we need)
@@ -55,6 +55,7 @@ class BlockchainService {
     this.registryContract = null;
     this.usdcContract = null;
     this.isInitialized = false;
+    this.nonceManagers = new Map();
   }
 
   /**
@@ -84,11 +85,52 @@ class BlockchainService {
   }
 
   /**
-   * Get a signer from a private key
+   * Get a managed signer with automatic nonce tracking for sequential transactions.
+   * Uses NonceManager to prevent nonce collision.
+   */
+  getManagedSigner(privateKey) {
+    if (!this.isInitialized) this.initialize();
+
+    // Return cached NonceManager if exists
+    if (this.nonceManagers.has(privateKey)) {
+      return this.nonceManagers.get(privateKey);
+    }
+
+    // Create new wallet + NonceManager wrapper
+    const wallet = new ethers.Wallet(privateKey, this.provider);
+    const nonceManager = new NonceManager(wallet);
+
+    // Cache for future sequential transactions
+    this.nonceManagers.set(privateKey, nonceManager);
+
+    return nonceManager;
+  }
+
+  /**
+   * Reset nonce tracking after transaction errors.
+   */
+  resetNonce(privateKey) {
+    const manager = this.nonceManagers.get(privateKey);
+    if (manager) {
+      manager.reset();
+      console.log('[BlockchainService] Nonce reset for key:', privateKey.slice(0, 10) + '...');
+    }
+  }
+
+  /**
+   * Clear all cached NonceManagers.
+   */
+  clearNonceCache() {
+    this.nonceManagers.clear();
+    console.log('[BlockchainService] Nonce cache cleared');
+  }
+
+  /**
+   * @deprecated Use getManagedSigner() for sequential transactions
    */
   getSigner(privateKey) {
-    if (!this.isInitialized) this.initialize();
-    return new ethers.Wallet(privateKey, this.provider);
+    console.warn('[BlockchainService] getSigner() is deprecated, use getManagedSigner()');
+    return this.getManagedSigner(privateKey);
   }
 
   normalizeAgentId(agentId) {
@@ -293,7 +335,7 @@ class BlockchainService {
       throw new Error('payerEoa is required');
     }
 
-    const signer = this.getSigner(ownerPrivateKey);
+    const signer = this.getManagedSigner(ownerPrivateKey);
     const registryWithSigner = this.registryContract.connect(signer);
 
     try {
@@ -339,7 +381,8 @@ class BlockchainService {
 
     } catch (error) {
       console.error('[BlockchainService] Registration error:', error);
-      
+      this.resetNonce(ownerPrivateKey);
+
       return {
         success: false,
         error: 'REGISTRATION_FAILED',
@@ -354,8 +397,8 @@ class BlockchainService {
    */
   async updateAgentActivity(agentId, activity, ownerPrivateKey) {
     if (!this.isInitialized) this.initialize();
-    
-    const signer = this.getSigner(ownerPrivateKey);
+
+    const signer = this.getManagedSigner(ownerPrivateKey);
     const registryWithSigner = this.registryContract.connect(signer);
 
     try {
@@ -393,7 +436,7 @@ class BlockchainService {
       throw new Error('Blockchain service not initialized');
     }
 
-    const signer = this.getSigner(ownerPrivateKey);
+    const signer = this.getManagedSigner(ownerPrivateKey);
     const registryWithSigner = this.registryContract.connect(signer);
 
     try {
@@ -407,6 +450,7 @@ class BlockchainService {
       };
     } catch (error) {
       console.error('[BlockchainService] setAgentUri error:', error);
+      this.resetNonce(ownerPrivateKey);
       return {
         success: false,
         error: error.message
