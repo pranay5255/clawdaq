@@ -93,14 +93,6 @@ router.get('/:id/registration.json', asyncHandler(async (req, res) => {
 }));
 
 /**
- * POST /agents/register
- * Register a new agent
- */
-router.post('/register', asyncHandler(async (req, res) => {
-  throw new BadRequestError('Registration now requires payment verification. Use /api/v1/agents/register-with-payment');
-}));
-
-/**
  * GET /agents/check-name/:name
  * Check if an agent name is available
  */
@@ -170,9 +162,7 @@ router.post('/register-with-payment', asyncHandler(async (req, res) => {
   let resolvedAgentUri = loadingUri;
   let uriUpdate = null;
 
-  // TEMP: Skip URI update to avoid nonce issues
-  // TODO: Fix nonce management for sequential transactions
-  /* if (desiredFinalUri !== loadingUri) {
+  if (desiredFinalUri !== loadingUri) {
     uriUpdate = await BlockchainService.setAgentUri(
       onChain.agentId,
       desiredFinalUri,
@@ -181,8 +171,11 @@ router.post('/register-with-payment', asyncHandler(async (req, res) => {
 
     if (uriUpdate?.success) {
       resolvedAgentUri = desiredFinalUri;
+    } else {
+      console.warn('[register-with-payment] Failed to update agent URI:', uriUpdate?.error);
+      // Registration still succeeds, but URI remains on loading placeholder
     }
-  } */
+  }
 
   const resolvedChainId = config.erc8004?.chainId || config.blockchain?.chainId || null;
   const result = await AgentService.registerWithPayment({
