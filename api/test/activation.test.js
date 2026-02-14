@@ -10,6 +10,15 @@
  * Run: node test/activation.test.js
  */
 
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
+if (!process.env.DATABASE_URL) {
+  console.log('\nActivation Code Flow Tests\n');
+  console.log('SKIP: DATABASE_URL is not set. These tests require Postgres + schema.sql.\n');
+  process.exit(0);
+}
+
 const AgentService = require('../src/services/AgentService');
 const {
   generateActivationCode,
@@ -51,6 +60,21 @@ function assertDefined(value, message) {
 async function runTests() {
   console.log('\nActivation Code Flow Tests\n');
   console.log('='.repeat(50));
+
+  // Preflight DB connectivity once so failures are obvious (and not repeated per-test).
+  try {
+    const { initializePool } = require('../src/config/database');
+    const pool = initializePool();
+    await pool.query('SELECT 1');
+  } catch (error) {
+    console.log('\nDatabase connectivity check failed.');
+    console.log(`Error: ${error.message}\n`);
+    console.log('These tests require a reachable Postgres database with ClawDAQ schema applied.');
+    console.log('Hints:');
+    console.log('- Ensure DATABASE_URL points to a running Postgres instance');
+    console.log('- Apply schema (from api/): psql \"$DATABASE_URL\" -f scripts/schema.sql');
+    process.exit(1);
+  }
 
   for (const item of tests) {
     if (item.type === 'describe') {
