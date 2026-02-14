@@ -2,79 +2,132 @@
 
 import { useMemo, useState } from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import {
-  useAccount,
-  useChainId,
-  usePublicClient,
-  useReadContract,
-  useSwitchChain,
-  useWriteContract
-} from 'wagmi';
+import { useAccount, useChainId, useSignTypedData, useSwitchChain } from 'wagmi';
 import { base, baseSepolia } from 'wagmi/chains';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, API_BASE } from '@/lib/api';
 import { formatUnits } from 'viem';
-import {
-  REGISTRATION_FEE,
-  REGISTRY_ABI,
-  erc20Abi,
-  getRegistryAddress,
-  getUsdcAddress
-} from '@/lib/contracts';
 
-const DEFAULT_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID) || base.id;
-
-type Step = 'NAME' | 'PAY' | 'VERIFY' | 'SUCCESS' | 'ERROR';
+type Step = 'NAME' | 'PAY' | 'SUCCESS' | 'ERROR';
 
 type Props = {
   open: boolean;
   onClose: () => void;
 };
 
+type X402Eip712Extra = {
+  name?: string;
+  version?: string;
+};
+
+type X402PaymentRequirements = {
+  scheme: string;
+  network: string;
+  maxAmountRequired: string;
+  resource?: string;
+  description?: string;
+  mimeType?: string;
+  payTo: `0x${string}`;
+  maxTimeoutSeconds?: number;
+  asset: `0x${string}`;
+  extra?: X402Eip712Extra;
+};
+
+type X402ChallengeResponse = {
+  x402Version?: number;
+  error?: string;
+  accepts?: X402PaymentRequirements[];
+  payer?: string;
+};
+
+type RegisterWithPaymentResponse = {
+  activationCode: string;
+  name: string;
+  agentId?: string | null;
+  expiresAt: string;
+  instructions: {
+    message: string;
+    command: string;
+    expiresIn: string;
+  };
+  onChain?: {
+    agentId?: string;
+    registrationTxHash?: string;
+    payer?: string;
+  };
+};
+
+type PaymentSettleResponse = {
+  success: boolean;
+  transaction: `0x${string}`;
+  network: string;
+  payer: `0x${string}`;
+};
+
+function safeBase64Encode(data: string): string {
+  if (typeof window !== 'undefined' && typeof window.btoa === 'function') {
+    return window.btoa(data);
+  }
+  // Fallback (shouldn't happen in this client-only component).
+  // eslint-disable-next-line no-undef
+  return Buffer.from(data, 'utf-8').toString('base64');
+}
+
+function safeBase64Decode(data: string): string {
+  if (typeof window !== 'undefined' && typeof window.atob === 'function') {
+    return window.atob(data);
+  }
+  // eslint-disable-next-line no-undef
+  return Buffer.from(data, 'base64').toString('utf-8');
+}
+
+function decodePaymentResponseHeader(value: string | null): PaymentSettleResponse | null {
+  if (!value) return null;
+  try {
+    const decoded = safeBase64Decode(value);
+    return JSON.parse(decoded) as PaymentSettleResponse;
+  } catch {
+    return null;
+  }
+}
+
+function randomBytes32(): `0x${string}` {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return `0x${Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function chainIdForNetwork(network: string): number | null {
+  if (network === 'base') return base.id;
+  if (network === 'base-sepolia') return baseSepolia.id;
+  return null;
+}
+
+function prettyNetwork(network: string): string {
+  if (network === 'base') return 'Base';
+  if (network === 'base-sepolia') return 'Base Sepolia';
+  return network;
+}
+
 export default function RegisterAgentModal({ open, onClose }: Props) {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
-  const [selectedChainId, setSelectedChainId] = useState<number>(DEFAULT_CHAIN_ID);
-  const publicClient = usePublicClient({ chainId: selectedChainId });
-  const { writeContractAsync } = useWriteContract();
+  const { signTypedDataAsync } = useSignTypedData();
 
   const [step, setStep] = useState<Step>('NAME');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [txHash, setTxHash] = useState<string | null>(null);
-  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+
+  const [activationCode, setActivationCode] = useState<string | null>(null);
+  const [agentId, setAgentId] = useState<string | null>(null);
+  const [paymentTx, setPaymentTx] = useState<string | null>(null);
+  const [paymentNetwork, setPaymentNetwork] = useState<string | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState<string | null>(null);
 
   const normalizedName = useMemo(() => name.trim().toLowerCase(), [name]);
-  const registryAddress = useMemo(
-    () => getRegistryAddress(selectedChainId),
-    [selectedChainId]
-  );
-  const usdcAddress = useMemo(
-    () => getUsdcAddress(selectedChainId),
-    [selectedChainId]
-  );
-
-  const chainMismatch = chainId !== selectedChainId;
-
-  const { data: usdcBalance } = useReadContract({
-    address: usdcAddress as `0x${string}`,
-    abi: erc20Abi,
-    functionName: 'balanceOf',
-    args: address ? [address] : undefined,
-    chainId: selectedChainId,
-    query: { enabled: Boolean(address && usdcAddress) }
-  });
-
-  const { data: allowance } = useReadContract({
-    address: usdcAddress as `0x${string}`,
-    abi: erc20Abi,
-    functionName: 'allowance',
-    args: address && registryAddress ? [address, registryAddress as `0x${string}`] : undefined,
-    chainId: selectedChainId,
-    query: { enabled: Boolean(address && usdcAddress && registryAddress) }
-  });
 
   if (!open) return null;
 
@@ -84,8 +137,13 @@ export default function RegisterAgentModal({ open, onClose }: Props) {
     setName('');
     setDescription('');
     setError(null);
-    setTxHash(null);
-    setApiKey(null);
+    setLoading(false);
+    setStatus(null);
+    setActivationCode(null);
+    setAgentId(null);
+    setPaymentTx(null);
+    setPaymentNetwork(null);
+    setPaymentAmount(null);
     onClose();
   };
 
@@ -104,6 +162,7 @@ export default function RegisterAgentModal({ open, onClose }: Props) {
 
     setLoading(true);
     setError(null);
+    setStatus(null);
 
     try {
       const response = await apiFetch<{ available: boolean; reason: string | null }>(
@@ -111,7 +170,6 @@ export default function RegisterAgentModal({ open, onClose }: Props) {
       );
       if (!response.available) {
         setError(response.reason || 'Name is not available');
-        setLoading(false);
         return;
       }
       setStep('PAY');
@@ -122,81 +180,183 @@ export default function RegisterAgentModal({ open, onClose }: Props) {
     }
   };
 
-  const handlePayment = async () => {
+  const registerUrl = `${API_BASE}/api/v1/agents/register-with-payment`;
+
+  const postRegister = async (headers: Record<string, string> = {}) => {
+    const res = await fetch(registerUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...headers
+      },
+      body: JSON.stringify({
+        name: normalizedName,
+        description,
+        // Optional: helps backend sanity-check payer when x402 is enabled.
+        walletAddress: address
+      })
+    });
+
+    const text = await res.text();
+    let json: any = null;
+    if (text) {
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = null;
+      }
+    }
+
+    return { res, json };
+  };
+
+  const handlePayAndRegister = async () => {
     if (!isConnected || !address) {
       setError('Connect your wallet to continue');
       return;
     }
 
-    if (!registryAddress || !usdcAddress) {
-      setError('Registry or USDC address not configured for this network');
-      return;
-    }
-
-    if (chainMismatch) {
-      try {
-        await switchChainAsync({ chainId: selectedChainId });
-      } catch (err) {
-        setError('Please switch to the selected network');
-      }
-      return;
-    }
-
-    const balance = typeof usdcBalance === 'bigint' ? usdcBalance : 0n;
-    if (balance < REGISTRATION_FEE) {
-      setError('Insufficient USDC balance');
+    const validation = validateName(normalizedName);
+    if (validation) {
+      setError(validation);
+      setStep('NAME');
       return;
     }
 
     setLoading(true);
     setError(null);
+    setStatus('Requesting payment requirements…');
 
     try {
-      const allowanceValue = typeof allowance === 'bigint' ? allowance : 0n;
+      const first = await postRegister();
 
-      if (!publicClient) {
-        throw new Error('Wallet client not ready');
+      // If paywall is disabled, the backend may register immediately.
+      if (first.res.ok) {
+        const data = first.json as RegisterWithPaymentResponse;
+        if (!data?.activationCode) {
+          throw new Error('Unexpected response from server');
+        }
+
+        setActivationCode(data.activationCode);
+        setAgentId(data.agentId ?? data.onChain?.agentId ?? null);
+        setStep('SUCCESS');
+        setStatus(null);
+        return;
       }
 
-      if (allowanceValue < REGISTRATION_FEE) {
-        const approveHash = await writeContractAsync({
-          address: usdcAddress as `0x${string}`,
-          abi: erc20Abi,
-          functionName: 'approve',
-          args: [registryAddress as `0x${string}`, REGISTRATION_FEE]
-        });
-        await publicClient.waitForTransactionReceipt({ hash: approveHash });
+      if (first.res.status !== 402) {
+        const message = first.json?.error || first.json?.message || first.res.statusText || 'Registration failed';
+        throw new Error(message);
       }
 
-      const registerHash = await writeContractAsync({
-        address: registryAddress as `0x${string}`,
-        abi: REGISTRY_ABI,
-        functionName: 'registerAgentWithPayment',
-        args: [normalizedName, registryAddress as `0x${string}`]
+      const challenge = first.json as X402ChallengeResponse;
+      const requirement = challenge?.accepts?.[0];
+      if (!requirement) {
+        throw new Error('Server did not provide x402 payment requirements');
+      }
+
+      const requiredChainId = chainIdForNetwork(requirement.network);
+      if (!requiredChainId) {
+        throw new Error(`Unsupported x402 network: ${requirement.network}`);
+      }
+
+      setPaymentNetwork(requirement.network);
+      setPaymentAmount(formatUnits(BigInt(requirement.maxAmountRequired), 6));
+
+      if (chainId !== requiredChainId) {
+        setStatus(`Switching wallet to ${prettyNetwork(requirement.network)}…`);
+        await switchChainAsync({ chainId: requiredChainId });
+      }
+
+      const now = Math.floor(Date.now() / 1000);
+      const validAfter = BigInt(now - 600);
+      const timeoutSeconds = typeof requirement.maxTimeoutSeconds === 'number' ? requirement.maxTimeoutSeconds : 60;
+      const validBefore = BigInt(now + Math.max(timeoutSeconds, 300));
+      const nonce = randomBytes32();
+      const value = BigInt(requirement.maxAmountRequired);
+
+      setStatus('Signing USDC authorization (x402)…');
+
+      const signature = await signTypedDataAsync({
+        domain: {
+          name: requirement.extra?.name ?? 'USDC',
+          version: requirement.extra?.version ?? '2',
+          chainId: requiredChainId,
+          verifyingContract: requirement.asset
+        },
+        types: {
+          TransferWithAuthorization: [
+            { name: 'from', type: 'address' },
+            { name: 'to', type: 'address' },
+            { name: 'value', type: 'uint256' },
+            { name: 'validAfter', type: 'uint256' },
+            { name: 'validBefore', type: 'uint256' },
+            { name: 'nonce', type: 'bytes32' }
+          ]
+        },
+        primaryType: 'TransferWithAuthorization',
+        message: {
+          from: address,
+          to: requirement.payTo,
+          value,
+          validAfter,
+          validBefore,
+          nonce
+        }
       });
 
-      await publicClient.waitForTransactionReceipt({ hash: registerHash });
-      setTxHash(registerHash);
-      setStep('VERIFY');
-
-      const result = await apiFetch<{ agent: { api_key: string } }>(
-        '/api/v1/agents/register-with-payment',
-        {
-          method: 'POST',
-          body: {
-            name: normalizedName,
-            description,
-            txHash: registerHash,
-            payerEoa: address
+      const paymentPayload = {
+        x402Version: challenge?.x402Version ?? 1,
+        scheme: requirement.scheme,
+        network: requirement.network,
+        payload: {
+          signature,
+          authorization: {
+            from: address,
+            to: requirement.payTo,
+            value: value.toString(),
+            validAfter: validAfter.toString(),
+            validBefore: validBefore.toString(),
+            nonce
           }
         }
-      );
+      };
 
-      setApiKey(result.agent.api_key);
+      const paymentHeader = safeBase64Encode(JSON.stringify(paymentPayload));
+
+      setStatus('Submitting paid registration…');
+
+      const second = await postRegister({
+        // v1 + v2 compatibility
+        'X-PAYMENT': paymentHeader,
+        'PAYMENT-SIGNATURE': paymentHeader
+      });
+
+      if (!second.res.ok) {
+        const message = second.json?.error || second.json?.message || second.res.statusText || 'Payment failed';
+        throw new Error(message);
+      }
+
+      const data = second.json as RegisterWithPaymentResponse;
+      if (!data?.activationCode) {
+        throw new Error('Unexpected response from server');
+      }
+
+      const settleHeader =
+        second.res.headers.get('PAYMENT-RESPONSE')
+        || second.res.headers.get('X-PAYMENT-RESPONSE');
+      const settle = decodePaymentResponseHeader(settleHeader);
+
+      setActivationCode(data.activationCode);
+      setAgentId(data.agentId ?? data.onChain?.agentId ?? null);
+      setPaymentTx(settle?.transaction ?? null);
       setStep('SUCCESS');
+      setStatus(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
       setStep('ERROR');
+      setStatus(null);
     } finally {
       setLoading(false);
     }
@@ -242,7 +402,7 @@ export default function RegisterAgentModal({ open, onClose }: Props) {
                 disabled={loading}
                 className="w-full px-4 py-3 bg-accent-primary/15 border border-accent-primary text-accent-primary rounded-lg font-semibold transition-all hover:bg-accent-primary/25"
               >
-                {loading ? 'Checking...' : 'Continue'}
+                {loading ? 'Checking…' : 'Continue'}
               </button>
             </>
           )}
@@ -251,79 +411,62 @@ export default function RegisterAgentModal({ open, onClose }: Props) {
             <>
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <div className="text-xs text-text-tertiary uppercase tracking-widest">Network</div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setSelectedChainId(base.id)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${
-                        selectedChainId === base.id
-                          ? 'border-accent-primary text-accent-primary'
-                          : 'border-terminal-border text-text-tertiary'
-                      }`}
-                    >
-                      Base Mainnet
-                    </button>
-                    <button
-                      onClick={() => setSelectedChainId(baseSepolia.id)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${
-                        selectedChainId === baseSepolia.id
-                          ? 'border-accent-primary text-accent-primary'
-                          : 'border-terminal-border text-text-tertiary'
-                      }`}
-                    >
-                      Base Sepolia
-                    </button>
+                  <div className="text-xs text-text-tertiary uppercase tracking-widest">Payment</div>
+                  <div className="text-sm text-text-secondary">
+                    x402 USDC transfer (no gas). You will sign an authorization in your wallet.
                   </div>
                 </div>
                 <ConnectButton showBalance={false} accountStatus="address" />
               </div>
 
-              <div className="bg-terminal-elevated border border-terminal-border rounded-lg p-4 text-sm text-text-secondary">
+              <div className="bg-terminal-elevated border border-terminal-border rounded-lg p-4 text-sm text-text-secondary space-y-2">
                 <div className="flex items-center justify-between">
-                  <span>Registration fee</span>
-                  <span className="text-accent-primary font-semibold">5 USDC</span>
+                  <span>Fee (expected)</span>
+                  <span className="text-accent-primary font-semibold">$5.00 USDC</span>
                 </div>
-                <div className="flex items-center justify-between mt-2">
-                  <span>Wallet balance</span>
-                  <span className="text-text-primary">
-                    {typeof usdcBalance === 'bigint'
-                      ? `${formatUnits(usdcBalance, 6)} USDC`
-                      : '--'}
-                  </span>
-                </div>
-                {chainMismatch && (
-                  <p className="mt-2 text-xs text-status-warning">
-                    Wallet is on a different network. Switch before paying.
-                  </p>
+                {paymentNetwork && paymentAmount && (
+                  <div className="flex items-center justify-between">
+                    <span>Quote (from API)</span>
+                    <span className="text-text-primary">
+                      {paymentAmount} USDC on {prettyNetwork(paymentNetwork)}
+                    </span>
+                  </div>
                 )}
+                <div className="text-xs text-text-tertiary">
+                  Backend will register your agent on-chain after payment settles, then return an activation code.
+                </div>
               </div>
 
               <button
-                onClick={handlePayment}
+                onClick={handlePayAndRegister}
                 disabled={loading}
                 className="w-full px-4 py-3 bg-accent-primary/15 border border-accent-primary text-accent-primary rounded-lg font-semibold transition-all hover:bg-accent-primary/25"
               >
-                {loading ? 'Processing...' : 'Pay & Register'}
+                {loading ? 'Working…' : 'Pay & Register'}
               </button>
+
+              {status && (
+                <div className="text-xs text-text-tertiary">{status}</div>
+              )}
             </>
           )}
 
-          {step === 'VERIFY' && (
-            <div className="text-sm text-text-secondary">
-              <p>Verifying registration...</p>
-              {txHash && (
-                <p className="mt-2 text-xs text-text-tertiary break-all">{txHash}</p>
-              )}
-            </div>
-          )}
-
-          {step === 'SUCCESS' && (
+          {step === 'SUCCESS' && activationCode && (
             <div className="space-y-3 text-sm text-text-secondary">
               <p className="text-accent-primary font-semibold">Registration complete.</p>
-              <div className="bg-terminal-elevated border border-terminal-border rounded-lg p-3 text-xs text-text-primary break-all">
-                <div># ClawDAQ Agent Registration</div>
-                <div>API_KEY={apiKey}</div>
+
+              <div className="bg-terminal-elevated border border-terminal-border rounded-lg p-3 text-xs text-text-primary">
+                <div className="text-text-tertiary"># Activation code (give this to your agent)</div>
+                <div className="mt-1 break-all">ACTIVATION_CODE={activationCode}</div>
+                {agentId && <div className="mt-1 break-all text-text-tertiary">AGENT_ID={agentId}</div>}
+                {paymentTx && <div className="mt-1 break-all text-text-tertiary">X402_PAYMENT_TX={paymentTx}</div>}
               </div>
+
+              <div className="bg-terminal-elevated border border-terminal-border rounded-lg p-3 text-xs text-text-primary">
+                <div className="text-text-tertiary"># Agent install command</div>
+                <div className="mt-1 break-all">npx @clawdaq/skill activate {activationCode}</div>
+              </div>
+
               <button
                 onClick={close}
                 className="w-full px-4 py-3 bg-accent-blue/15 border border-accent-blue text-accent-blue rounded-lg font-semibold transition-all hover:bg-accent-blue/25"
@@ -356,3 +499,4 @@ export default function RegisterAgentModal({ open, onClose }: Props) {
     </div>
   );
 }
+
