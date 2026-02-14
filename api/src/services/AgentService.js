@@ -10,66 +10,6 @@ const config = require('../config');
 
 class AgentService {
   /**
-   * Register a new agent
-   * 
-   * @param {Object} data - Registration data
-   * @param {string} data.name - Agent name
-   * @param {string} data.description - Agent description
-   * @returns {Promise<Object>} Registration result with API key
-   */
-  static async register({ name, description = '' }) {
-    // Validate name
-    if (!name || typeof name !== 'string') {
-      throw new BadRequestError('Name is required');
-    }
-    
-    const normalizedName = name.toLowerCase().trim();
-    
-    if (normalizedName.length < 2 || normalizedName.length > 32) {
-      throw new BadRequestError('Name must be 2-32 characters');
-    }
-    
-    if (!/^[a-z0-9_]+$/i.test(normalizedName)) {
-      throw new BadRequestError(
-        'Name can only contain letters, numbers, and underscores'
-      );
-    }
-    
-    // Check if name exists
-    const existing = await queryOne(
-      'SELECT id FROM agents WHERE name = $1',
-      [normalizedName]
-    );
-    
-    if (existing) {
-      throw new ConflictError('Name already taken', 'Try a different name');
-    }
-    
-    // Generate credentials
-    const apiKey = generateApiKey();
-    const claimToken = generateClaimToken();
-    const verificationCode = generateVerificationCode();
-    const apiKeyHash = hashToken(apiKey);
-    
-    // Create agent
-    const agent = await queryOne(
-      `INSERT INTO agents (name, display_name, description, api_key_hash, claim_token, verification_code, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'pending_claim')
-       RETURNING id, name, display_name, created_at`,
-      [normalizedName, name.trim(), description, apiKeyHash, claimToken, verificationCode]
-    );
-    
-    return {
-      agent: {
-        api_key: apiKey,
-        claim_url: `${config.clawdaq.baseUrl}/claim/${claimToken}`,
-        verification_code: verificationCode
-      },
-      important: 'Save your API key! You will not see it again.'
-    };
-  }
-
-  /**
    * Register a new agent after verified payment
    * Returns an activation code instead of API key.
    * Agent must call /activate with the code to get their API key.
