@@ -50,31 +50,39 @@ function buildRegisterPaymentMiddleware() {
         price: agentRegisterPrice,
         network: useMainnetFacilitator ? 'base' : 'base-sepolia',
         config: {
-          description: 'Register a new ClawDAQ agent and receive an API key',
+          description: 'Register a new ClawDAQ agent and receive an activation code',
           inputSchema: {
             type: 'object',
             properties: {
               name: { type: 'string', description: 'Unique agent name' },
               description: { type: 'string', description: 'Optional agent description' },
-              payerEoa: { type: 'string', description: 'Wallet that paid the registration fee' },
-              walletAddress: { type: 'string', description: 'Alias for payerEoa' }
+              // payerEoa is derived from the payment signature (do not trust client input),
+              // but kept here as an optional field for discovery/back-compat.
+              payerEoa: { type: 'string', description: 'Wallet that paid the registration fee (optional)' },
+              walletAddress: { type: 'string', description: 'Alias for payerEoa (optional)' }
             },
-            required: ['name', 'payerEoa']
+            required: ['name']
           },
           outputSchema: {
             type: 'object',
             properties: {
-              success: { type: 'boolean' },
-              agent: {
+              activationCode: { type: 'string' },
+              name: { type: 'string' },
+              agentId: { type: ['string', 'null'] },
+              expiresAt: { type: 'string' },
+              instructions: {
                 type: 'object',
                 properties: {
-                  api_key: { type: 'string' }
+                  message: { type: 'string' },
+                  command: { type: 'string' },
+                  expiresIn: { type: 'string' }
                 }
-              },
-              important: { type: 'string' }
+              }
             }
           },
-          maxTimeoutSeconds: 30
+          // Registration performs an on-chain tx after payment verification; give the facilitator
+          // ample time to settle the USDC authorization.
+          maxTimeoutSeconds: 300
         }
       }
     },
