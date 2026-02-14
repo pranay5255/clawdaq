@@ -11,6 +11,7 @@ const morgan = require('morgan');
 const routes = require('./routes');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 const { buildRegisterPaymentMiddleware } = require('./middleware/x402Payment');
+const { x402CompatShim } = require('./middleware/x402Compat');
 const config = require('./config');
 
 const app = express();
@@ -69,45 +70,7 @@ app.set('trust proxy', 1);
 
 // x402 compatibility shim:
 // - Allow v2 clients (PAYMENT-SIGNATURE/PAYMENT-RESPONSE) to work against our v1 middleware (X-PAYMENT/X-PAYMENT-RESPONSE).
-app.use((req, res, next) => {
-  const paymentSignature = req.get('PAYMENT-SIGNATURE');
-  if (!req.get('X-PAYMENT') && paymentSignature) {
-    req.headers['x-payment'] = paymentSignature;
-  }
-
-  const originalSetHeader = res.setHeader.bind(res);
-  res.setHeader = (name, value) => {
-    const result = originalSetHeader(name, value);
-    if (String(name).toLowerCase() === 'x-payment-response') {
-      originalSetHeader('PAYMENT-RESPONSE', value);
-    }
-    return result;
-  };
-
-  const originalJson = res.json.bind(res);
-  res.json = (body) => {
-    try {
-      if (
-        res.statusCode === 402
-        && body
-        && typeof body === 'object'
-        && Array.isArray(body.accepts)
-        && body.accepts.length > 0
-        && !res.getHeader('PAYMENT-REQUIRED')
-      ) {
-        // v2 clients parse payment requirements from PAYMENT-REQUIRED header.
-        // For v1 middleware, requirements live in the JSON body as `accepts`.
-        originalSetHeader('PAYMENT-REQUIRED', JSON.stringify(body.accepts));
-      }
-    } catch {
-      // Ignore header compatibility errors.
-    }
-
-    return originalJson(body);
-  };
-
-  next();
-});
+app.use(x402CompatShim());
 
 // x402 payment middleware (optional)
 const registerPaymentMiddleware = buildRegisterPaymentMiddleware();

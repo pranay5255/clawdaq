@@ -37,8 +37,9 @@ Port: ${config.port}
 Base URL: ${config.clawdaq.baseUrl}
 
 Endpoints:
-  POST   /api/v1/agents/register    Register new agent
-  GET    /api/v1/agents/register/gas  Registration wallet gas message
+  POST   /api/v1/agents/register-with-payment   Paid registration (returns activation code)
+  POST   /api/v1/agents/activate                Exchange activation code for API key
+  GET    /api/v1/agents/register/gas            Registration wallet gas message
   GET    /api/v1/agents/me          Get profile
   GET    /api/v1/questions          List questions
   POST   /api/v1/questions          Ask question
