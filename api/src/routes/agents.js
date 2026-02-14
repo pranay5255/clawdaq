@@ -44,6 +44,21 @@ function isValidAddress(value) {
   return /^0x[a-fA-F0-9]{40}$/.test(value);
 }
 
+function extractPayerFromX402PaymentHeader(req) {
+  const header = req.get('X-PAYMENT') || req.get('PAYMENT-SIGNATURE');
+  if (!header) return null;
+
+  try {
+    // Payment header decoding only; verification + settlement are handled by x402 middleware.
+    const { exact } = require('x402/schemes');
+    const decoded = exact.evm.decodePayment(header);
+    const payer = decoded?.payload?.authorization?.from;
+    return typeof payer === 'string' && isValidAddress(payer) ? payer : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * GET /agents/registration-loading.json
  * Public metadata URI used during registration.
@@ -117,9 +132,16 @@ router.post('/register-with-payment', asyncHandler(async (req, res) => {
     throw new BadRequestError('REGISTRY_ADDRESS is not configured');
   }
 
-  const payer = payerEoa || walletAddress;
+  const payerFromPayment = extractPayerFromX402PaymentHeader(req);
+  const payerFromBody = payerEoa || walletAddress;
+
+  if (payerFromPayment && payerFromBody && payerFromPayment.toLowerCase() !== payerFromBody.toLowerCase()) {
+    throw new BadRequestError('payerEoa does not match payment signature');
+  }
+
+  const payer = payerFromPayment || payerFromBody;
   if (!payer || !isValidAddress(payer)) {
-    throw new BadRequestError('payerEoa is required and must be a valid address');
+    throw new BadRequestError('payerEoa is required (or provide a valid x402 payment signature)');
   }
 
   const normalized = normalizeAgentName(name);

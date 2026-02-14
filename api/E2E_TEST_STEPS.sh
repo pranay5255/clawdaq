@@ -1,192 +1,164 @@
 #!/bin/bash
-# ClawDAQ End-to-End Testing Steps
-# Run after redeploying contracts and updating .env
+# ClawDAQ End-to-End Test Steps (includes x402 USDC payment)
+#
+# This script is intentionally bash-first: each "step" is a command you can run manually.
+#
+# Requirements:
+# - Postgres running + DATABASE_URL configured
+# - foundry 'cast' installed (for on-chain checks)
+# - jq installed (for JSON output)
+#
+# Usage:
+#   cd api
+#   PAYER_PRIVATE_KEY=0x... ./E2E_TEST_STEPS.sh
+#
+# Notes:
+# - PAYER_PRIVATE_KEY should be an EOA that has USDC on the x402 network (Base Sepolia if X402_ENV=testnet).
+# - The backend custodial wallet (CUSTODIAL_PRIVATE_KEY) must own REGISTRY_ADDRESS and must have ETH for gas.
 
-set -e  # Exit on error
+set -euo pipefail
 
-echo "🚀 ClawDAQ End-to-End Testing Setup"
-echo "======================================"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+API_DIR="$REPO_ROOT/api"
+
+echo ""
+echo "ClawDAQ E2E (x402) - Setup"
+echo "=========================="
 echo ""
 
-# Step 1: Verify Configuration
-echo "📋 Step 1: Verify Configuration"
-echo "--------------------------------"
+cd "$API_DIR"
 
-cd /home/pranay5255/Documents/clawdaq/api
-source .env
-
-if [ -z "$REGISTRY_ADDRESS" ]; then
-    echo "❌ ERROR: REGISTRY_ADDRESS not set in api/.env"
-    exit 1
+ENV_FILE=".env"
+if [ -f ".env.local" ]; then
+  ENV_FILE=".env.local"
 fi
 
-if [ -z "$CUSTODIAL_PRIVATE_KEY" ]; then
-    echo "❌ ERROR: CUSTODIAL_PRIVATE_KEY not set in api/.env"
-    exit 1
+# Step 1: Verify configuration
+echo "Step 1: Verify configuration"
+echo "----------------------------"
+
+if [ ! -f "$ENV_FILE" ]; then
+  echo "ERROR: api/$ENV_FILE not found"
+  exit 1
 fi
 
-echo "✅ REGISTRY_ADDRESS: $REGISTRY_ADDRESS"
-echo "✅ ERC8004_REGISTRY_ADDRESS: $ERC8004_REGISTRY_ADDRESS"
+set -a
+source "$ENV_FILE"
+set +a
+
+for var in REGISTRY_ADDRESS USDC_ADDRESS BASE_RPC_URL BLOCKCHAIN_CHAIN_ID CUSTODIAL_PRIVATE_KEY ADDRESS; do
+  if [ -z "${!var:-}" ]; then
+    echo "ERROR: $var is not set in api/$ENV_FILE"
+    exit 1
+  fi
+done
+
+echo "REGISTRY_ADDRESS=$REGISTRY_ADDRESS"
+echo "USDC_ADDRESS=$USDC_ADDRESS"
+echo "BASE_RPC_URL=$BASE_RPC_URL"
+echo "BLOCKCHAIN_CHAIN_ID=$BLOCKCHAIN_CHAIN_ID"
+echo "ADDRESS(payTo)=$ADDRESS"
+echo "Using env file: $ENV_FILE"
 echo ""
 
-# Step 2: Verify Custodial Wallet
-echo "📋 Step 2: Verify Custodial Wallet Matches Registry Owner"
-echo "----------------------------------------------------------"
+# Step 2: Verify custodial wallet matches registry owner
+echo "Step 2: Verify custodial wallet matches registry owner"
+echo "------------------------------------------------------"
 
-CUSTODIAL_WALLET=$(node -e "const {ethers} = require('ethers'); const w = new ethers.Wallet('$CUSTODIAL_PRIVATE_KEY'); console.log(w.address);")
+CUSTODIAL_WALLET="$(node -e "const {ethers} = require('ethers'); console.log(new ethers.Wallet(process.env.CUSTODIAL_PRIVATE_KEY).address);")"
 echo "Custodial Wallet: $CUSTODIAL_WALLET"
 
-REGISTRY_OWNER=$(cast call $REGISTRY_ADDRESS "owner()" --rpc-url https://sepolia.base.org)
-REGISTRY_OWNER_ADDR="0x${REGISTRY_OWNER:26}"
-echo "Registry Owner:   $REGISTRY_OWNER_ADDR"
+REGISTRY_OWNER="$(cast call "$REGISTRY_ADDRESS" "owner()(address)" --rpc-url "$BASE_RPC_URL")"
+echo "Registry Owner:   $REGISTRY_OWNER"
 
-if [ "${CUSTODIAL_WALLET,,}" = "${REGISTRY_OWNER_ADDR,,}" ]; then
-    echo "✅ Wallet matches registry owner"
-else
-    echo "❌ ERROR: Custodial wallet does not match registry owner!"
-    exit 1
+if [ "${CUSTODIAL_WALLET,,}" != "${REGISTRY_OWNER,,}" ]; then
+  echo "ERROR: Custodial wallet does not match registry owner"
+  exit 1
 fi
+
+echo "OK"
 echo ""
 
-# Step 3: Check Balances
-echo "📋 Step 3: Check Custodial Wallet Balances"
-echo "-------------------------------------------"
+# Step 3: Check custodial ETH balance (gas for on-chain registration)
+echo "Step 3: Check custodial ETH balance (gas)"
+echo "-----------------------------------------"
 
-ETH_BALANCE=$(cast balance $CUSTODIAL_WALLET --rpc-url https://sepolia.base.org --ether)
+ETH_BALANCE="$(cast balance "$CUSTODIAL_WALLET" --rpc-url "$BASE_RPC_URL" --ether)"
 echo "ETH Balance: $ETH_BALANCE ETH"
-
-USDC_BALANCE=$(cast call 0x036CbD53842c5426634e7929541eC2318f3dCF7e "balanceOf(address)(uint256)" $CUSTODIAL_WALLET --rpc-url https://sepolia.base.org)
-USDC_FORMATTED=$(node -e "console.log((BigInt('$USDC_BALANCE') / BigInt(1000000)).toString())")
-echo "USDC Balance: $USDC_FORMATTED USDC"
-
-if (( $(echo "$ETH_BALANCE < 0.01" | bc -l) )); then
-    echo "⚠️  WARNING: Low ETH balance (need ~0.05 for testing)"
-fi
-
-REG_FEE=$(cast call $REGISTRY_ADDRESS "REGISTRATION_FEE()" --rpc-url https://sepolia.base.org)
-REG_FEE_FORMATTED=$(node -e "console.log((BigInt('$REG_FEE') / BigInt(1000000)).toString())")
-echo "Registration Fee: $REG_FEE_FORMATTED USDC"
 echo ""
 
-# Step 4: Check and Set USDC Allowance
-echo "📋 Step 4: Check/Set USDC Allowance"
-echo "------------------------------------"
+# Step 4: Start API server with x402 paywall enabled
+echo "Step 4: Start API server with x402 paywall enabled"
+echo "--------------------------------------------------"
 
-ALLOWANCE=$(cast call 0x036CbD53842c5426634e7929541eC2318f3dCF7e "allowance(address,address)(uint256)" $CUSTODIAL_WALLET $REGISTRY_ADDRESS --rpc-url https://sepolia.base.org)
-ALLOWANCE_FORMATTED=$(node -e "console.log((BigInt('$ALLOWANCE') / BigInt(1000000)).toString())")
-echo "Current Allowance: $ALLOWANCE_FORMATTED USDC"
-
-if [ "$ALLOWANCE" = "0" ]; then
-    echo "⚠️  No allowance set. Setting allowance to 100 USDC..."
-
-    cd /home/pranay5255/Documents/clawdaq/foundry
-    source .env
-
-    cast send 0x036CbD53842c5426634e7929541eC2318f3dCF7e \
-        "approve(address,uint256)" \
-        $REGISTRY_ADDRESS \
-        100000000 \
-        --rpc-url base_sepolia \
-        --private-key $DEPLOYER_PRIVATE_KEY
-
-    echo "✅ Allowance set to 100 USDC"
-else
-    echo "✅ Allowance already set"
-fi
-echo ""
-
-# Step 5: Restart API Server
-echo "📋 Step 5: Restart API Server"
-echo "------------------------------"
-
-cd /home/pranay5255/Documents/clawdaq/api
-
-# Kill existing server
 pkill -f "node --watch src/index.js" 2>/dev/null || true
-sleep 2
+sleep 1
 
-# Start server in background
-npm run dev > /tmp/clawdaq-api-full.log 2>&1 &
-echo $! > /tmp/clawdaq-api.pid
-echo "API Server PID: $(cat /tmp/clawdaq-api.pid)"
+X402_REGISTER_REQUIRED=true npm run dev > /tmp/clawdaq-api-x402.log 2>&1 &
+echo $! > /tmp/clawdaq-api-x402.pid
 
-# Wait for server to start
+echo "API PID: $(cat /tmp/clawdaq-api-x402.pid)"
+echo "Logs: tail -f /tmp/clawdaq-api-x402.log"
 echo "Waiting for API to start..."
-sleep 5
-
-# Check health
-HEALTH=$(curl -s http://localhost:3000/api/v1/health)
-if echo "$HEALTH" | grep -q "healthy"; then
-    echo "✅ API server is healthy"
-else
-    echo "❌ API server not responding correctly"
-    echo "Response: $HEALTH"
-    exit 1
-fi
+sleep 4
 echo ""
 
-# Step 6: Run Debug Registration Test
-echo "📋 Step 6: Test Registration (Debug Script)"
-echo "--------------------------------------------"
+# Step 5: Health check
+echo "Step 5: Health check"
+echo "--------------------"
 
-node debug-registration.js
+curl -s "http://localhost:${PORT:-3000}/api/v1/health" | jq '.'
 echo ""
 
-# Step 7: Run Quick Registration Test
-echo "📋 Step 7: Quick Registration Test"
-echo "-----------------------------------"
+# Step 6: Verify x402 challenge (expect HTTP 402 + accepts[])
+echo "Step 6: Verify x402 challenge (expect 402)"
+echo "-----------------------------------------"
 
-TIMESTAMP=$(date +%s)
-TEST_NAME="e2etest${TIMESTAMP}"
+TS="$(date +%s)"
+TEST_NAME="x402bash_${TS}"
 
-echo "Testing registration with agent name: $TEST_NAME"
-
-RESULT=$(curl -s -X POST http://localhost:3000/api/v1/agents/register-with-payment \
+HTTP_STATUS="$(
+  curl -s -o /tmp/x402_challenge.json -w "%{http_code}" \
+    -X POST "http://localhost:${PORT:-3000}/api/v1/agents/register-with-payment" \
     -H "Content-Type: application/json" \
-    -d "{\"name\":\"$TEST_NAME\",\"description\":\"E2E test agent\",\"payerEoa\":\"$CUSTODIAL_WALLET\"}")
+    -H "Accept: application/json" \
+    -d "{\"name\":\"$TEST_NAME\",\"description\":\"x402 bash e2e\"}"
+)"
 
-echo "$RESULT" | jq '.'
+echo "HTTP status: $HTTP_STATUS"
+cat /tmp/x402_challenge.json | jq '.'
 
-if echo "$RESULT" | jq -e '.activationCode' > /dev/null; then
-    echo "✅ Registration successful!"
-    ACTIVATION_CODE=$(echo "$RESULT" | jq -r '.activationCode')
-    AGENT_ID=$(echo "$RESULT" | jq -r '.erc8004.agentId // .agentId')
-    echo ""
-    echo "Activation Code: $ACTIVATION_CODE"
-    echo "Agent ID: $AGENT_ID"
-
-    # Save for full test
-    echo "$ACTIVATION_CODE" > /tmp/test_activation_code.txt
-    echo "$TEST_NAME" > /tmp/test_agent_name.txt
+if [ "$HTTP_STATUS" != "402" ]; then
+  echo ""
+  echo "WARNING: Did not get 402. x402 paywall may be disabled or middleware not mounted."
+  echo "If you want to force x402, ensure the server was started with X402_REGISTER_REQUIRED=true."
+  echo ""
 else
-    echo "❌ Registration failed!"
-    echo "Check logs: tail -50 /tmp/clawdaq-api-full.log"
-    exit 1
+  echo ""
+  echo "OK (402 challenge received)"
+  echo ""
 fi
+
+# Step 7: Run full paid lifecycle (x402 + activation + authed calls)
+echo "Step 7: Run full paid lifecycle"
+echo "-------------------------------"
+
+if [ -z "${PAYER_PRIVATE_KEY:-}" ]; then
+  echo "ERROR: PAYER_PRIVATE_KEY is not set in your shell."
+  echo "Example:"
+  echo "  cd api"
+  echo "  export PAYER_PRIVATE_KEY=0x..."
+  echo "  node scripts/e2e-x402-lifecycle.js"
+  exit 1
+fi
+
+node scripts/e2e-x402-lifecycle.js
 echo ""
 
-# Step 8: Run Full Lifecycle Tests
-echo "📋 Step 8: Run Full Lifecycle Tests"
-echo "------------------------------------"
-
-echo "Running comprehensive test suite..."
+echo "=========================="
+echo "E2E (x402) Complete"
+echo "=========================="
 echo ""
-
-node test-agent-lifecycle.js
-
-echo ""
-echo "======================================"
-echo "🎉 All E2E Tests Complete!"
-echo "======================================"
-echo ""
-echo "Summary:"
-echo "  ✅ Configuration verified"
-echo "  ✅ Wallet and balances checked"
-echo "  ✅ USDC allowance set"
-echo "  ✅ API server running"
-echo "  ✅ Registration working"
-echo "  ✅ Full lifecycle tests passed"
-echo ""
-echo "API Server Logs: tail -f /tmp/clawdaq-api-full.log"
-echo "API Server PID: $(cat /tmp/clawdaq-api.pid)"
+echo "API PID: $(cat /tmp/clawdaq-api-x402.pid)"
+echo "Logs: tail -f /tmp/clawdaq-api-x402.log"
 echo ""

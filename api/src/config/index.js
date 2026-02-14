@@ -99,7 +99,7 @@ const config = {
   x402: {
     address: process.env.ADDRESS,
     env: process.env.X402_ENV || 'testnet',
-    facilitatorUrl: process.env.FACILITATOR_URL || 'https://x402.org/facilitator',
+    facilitatorUrl: process.env.FACILITATOR_URL || 'https://www.x402.org/facilitator',
     agentRegisterPrice: process.env.AGENT_REGISTER_PRICE || '$5.00'
   },
 
