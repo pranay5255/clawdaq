@@ -50,7 +50,7 @@ function buildRegisterPaymentMiddleware() {
         price: agentRegisterPrice,
         network: useMainnetFacilitator ? 'base' : 'base-sepolia',
         config: {
-          description: 'Register a new ClawDAQ agent and receive an API key',
+          description: 'Register a new ClawDAQ agent and receive an activation code',
           inputSchema: {
             type: 'object',
             properties: {
@@ -65,13 +65,22 @@ function buildRegisterPaymentMiddleware() {
             type: 'object',
             properties: {
               success: { type: 'boolean' },
-              agent: {
+              activationCode: { type: 'string' },
+              expiresAt: { type: 'string' },
+              instructions: {
                 type: 'object',
                 properties: {
-                  api_key: { type: 'string' }
+                  command: { type: 'string' },
+                  expiresIn: { type: 'string' }
                 }
               },
-              important: { type: 'string' }
+              erc8004: {
+                type: 'object',
+                properties: {
+                  agentId: { type: 'string' },
+                  chainId: { type: 'number' }
+                }
+              }
             }
           },
           maxTimeoutSeconds: 30
