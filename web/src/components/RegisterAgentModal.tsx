@@ -2,24 +2,17 @@
 
 import { useMemo, useState } from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import {
-  useAccount,
-  useChainId,
-  usePublicClient,
-  useReadContract,
-  useSwitchChain,
-  useWriteContract
-} from 'wagmi';
+import { useAccount, useChainId, useReadContract, useSwitchChain, useWalletClient } from 'wagmi';
 import { base, baseSepolia } from 'wagmi/chains';
-import { apiFetch } from '@/lib/api';
 import { formatUnits } from 'viem';
+import { apiFetch, API_BASE } from '@/lib/api';
+import { erc20Abi, getUsdcAddress } from '@/lib/contracts';
 import {
-  REGISTRATION_FEE,
-  REGISTRY_ABI,
-  erc20Abi,
-  getRegistryAddress,
-  getUsdcAddress
-} from '@/lib/contracts';
+  createX402PaymentHeader,
+  x402NetworkToChainId,
+  type X402ChallengeResponse,
+  type X402PaymentRequirements
+} from '@/lib/x402';
 
 const DEFAULT_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID) || base.id;
 
@@ -30,32 +23,78 @@ type Props = {
   onClose: () => void;
 };
 
+type RegisterWithPaymentResponse = {
+  success: boolean;
+  activationCode?: string;
+  name?: string;
+  agentId?: string | null;
+  expiresAt?: string;
+  instructions?: {
+    message?: string;
+    command?: string;
+    expiresIn?: string;
+  };
+  onChain?: {
+    agentId?: string;
+    tokenId?: string;
+    blockNumber?: number;
+    registrationTxHash?: string;
+    setUriTxHash?: string | null;
+    payer?: string;
+  };
+  registrationUris?: {
+    loading?: string;
+    final?: string;
+    active?: string;
+    status?: 'ready' | 'loading';
+  };
+  erc8004?: {
+    chainId?: number | null;
+    agentId?: string | null;
+    agentUri?: string | null;
+  };
+};
+
+function safeJsonParse(text: string) {
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function pickRequirements(params: {
+  accepts: X402PaymentRequirements[];
+  preferredNetwork: 'base' | 'base-sepolia';
+}) {
+  const { accepts, preferredNetwork } = params;
+  return (
+    accepts.find((req) => req?.scheme === 'exact' && req?.network === preferredNetwork)
+    || accepts.find((req) => req?.scheme === 'exact')
+    || accepts[0]
+  );
+}
+
 export default function RegisterAgentModal({ open, onClose }: Props) {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
+  const { data: walletClient } = useWalletClient();
+
   const [selectedChainId, setSelectedChainId] = useState<number>(DEFAULT_CHAIN_ID);
-  const publicClient = usePublicClient({ chainId: selectedChainId });
-  const { writeContractAsync } = useWriteContract();
 
   const [step, setStep] = useState<Step>('NAME');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [txHash, setTxHash] = useState<string | null>(null);
+
+  const [registerResult, setRegisterResult] = useState<RegisterWithPaymentResponse | null>(null);
   const [apiKey, setApiKey] = useState<string | null>(null);
 
   const normalizedName = useMemo(() => name.trim().toLowerCase(), [name]);
-  const registryAddress = useMemo(
-    () => getRegistryAddress(selectedChainId),
-    [selectedChainId]
-  );
-  const usdcAddress = useMemo(
-    () => getUsdcAddress(selectedChainId),
-    [selectedChainId]
-  );
-
+  const usdcAddress = useMemo(() => getUsdcAddress(selectedChainId), [selectedChainId]);
   const chainMismatch = chainId !== selectedChainId;
 
   const { data: usdcBalance } = useReadContract({
@@ -67,15 +106,6 @@ export default function RegisterAgentModal({ open, onClose }: Props) {
     query: { enabled: Boolean(address && usdcAddress) }
   });
 
-  const { data: allowance } = useReadContract({
-    address: usdcAddress as `0x${string}`,
-    abi: erc20Abi,
-    functionName: 'allowance',
-    args: address && registryAddress ? [address, registryAddress as `0x${string}`] : undefined,
-    chainId: selectedChainId,
-    query: { enabled: Boolean(address && usdcAddress && registryAddress) }
-  });
-
   if (!open) return null;
 
   const close = () => {
@@ -84,7 +114,7 @@ export default function RegisterAgentModal({ open, onClose }: Props) {
     setName('');
     setDescription('');
     setError(null);
-    setTxHash(null);
+    setRegisterResult(null);
     setApiKey(null);
     onClose();
   };
@@ -122,77 +152,100 @@ export default function RegisterAgentModal({ open, onClose }: Props) {
     }
   };
 
+  const postRegister = async (params: { paymentHeader?: string }) => {
+    if (!address) throw new Error('Wallet address missing');
+
+    const body = {
+      name: normalizedName,
+      description,
+      payerEoa: address
+    };
+
+    return fetch(`${API_BASE}/api/v1/agents/register-with-payment`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(params.paymentHeader ? { 'X-PAYMENT': params.paymentHeader } : {})
+      },
+      body: JSON.stringify(body)
+    });
+  };
+
   const handlePayment = async () => {
     if (!isConnected || !address) {
       setError('Connect your wallet to continue');
       return;
     }
 
-    if (!registryAddress || !usdcAddress) {
-      setError('Registry or USDC address not configured for this network');
-      return;
-    }
-
-    if (chainMismatch) {
-      try {
-        await switchChainAsync({ chainId: selectedChainId });
-      } catch (err) {
-        setError('Please switch to the selected network');
-      }
-      return;
-    }
-
-    const balance = typeof usdcBalance === 'bigint' ? usdcBalance : 0n;
-    if (balance < REGISTRATION_FEE) {
-      setError('Insufficient USDC balance');
-      return;
-    }
-
     setLoading(true);
     setError(null);
+    setRegisterResult(null);
+    setApiKey(null);
+    setStep('VERIFY');
 
     try {
-      const allowanceValue = typeof allowance === 'bigint' ? allowance : 0n;
+      // First request: expect either 201 or 402 with accepts[].
+      const first = await postRegister({});
+      const firstText = await first.text();
+      const firstJson = safeJsonParse(firstText);
 
-      if (!publicClient) {
-        throw new Error('Wallet client not ready');
+      if (first.ok) {
+        setRegisterResult(firstJson as RegisterWithPaymentResponse);
+        setStep('SUCCESS');
+        return;
       }
 
-      if (allowanceValue < REGISTRATION_FEE) {
-        const approveHash = await writeContractAsync({
-          address: usdcAddress as `0x${string}`,
-          abi: erc20Abi,
-          functionName: 'approve',
-          args: [registryAddress as `0x${string}`, REGISTRATION_FEE]
-        });
-        await publicClient.waitForTransactionReceipt({ hash: approveHash });
+      if (first.status !== 402) {
+        const message = firstJson?.error || firstJson?.message || 'Registration failed';
+        throw new Error(message);
       }
 
-      const registerHash = await writeContractAsync({
-        address: registryAddress as `0x${string}`,
-        abi: REGISTRY_ABI,
-        functionName: 'registerAgentWithPayment',
-        args: [normalizedName, registryAddress as `0x${string}`]
+      const challenge = firstJson as X402ChallengeResponse;
+      const accepts = Array.isArray(challenge?.accepts) ? challenge.accepts : [];
+
+      if (!challenge?.x402Version || accepts.length === 0) {
+        throw new Error('Payment required but missing accepts[] (x402 challenge)');
+      }
+
+      const preferredNetwork = selectedChainId === baseSepolia.id ? 'base-sepolia' : 'base';
+      const requirements = pickRequirements({ accepts, preferredNetwork });
+      const requiredChainId = x402NetworkToChainId(requirements.network);
+
+      if (requiredChainId !== selectedChainId) {
+        setSelectedChainId(requiredChainId);
+      }
+
+      if (chainId !== requiredChainId) {
+        try {
+          await switchChainAsync({ chainId: requiredChainId });
+        } catch {
+          throw new Error(`Please switch your wallet to ${requirements.network}`);
+        }
+      }
+
+      if (!walletClient?.signTypedData) {
+        throw new Error('Wallet does not support typed data signing');
+      }
+
+      const paymentHeader = await createX402PaymentHeader({
+        walletClient: walletClient as any,
+        from: address as `0x${string}`,
+        x402Version: challenge.x402Version,
+        requirements
       });
 
-      await publicClient.waitForTransactionReceipt({ hash: registerHash });
-      setTxHash(registerHash);
-      setStep('VERIFY');
+      // Second request: include X-PAYMENT header.
+      const second = await postRegister({ paymentHeader });
+      const secondText = await second.text();
+      const secondJson = safeJsonParse(secondText);
 
-      const result = await apiFetch<{ agent: { api_key: string } }>(
-        '/api/v1/agents/register-with-payment',
-        {
-          method: 'POST',
-          body: {
-            name: normalizedName,
-            description,
-            txHash: registerHash,
-            payerEoa: address
-          }
-        }
-      );
+      if (!second.ok) {
+        const message = secondJson?.error || secondJson?.message || 'Registration failed after payment';
+        throw new Error(message);
+      }
 
-      setApiKey(result.agent.api_key);
+      setRegisterResult(secondJson as RegisterWithPaymentResponse);
       setStep('SUCCESS');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
@@ -201,6 +254,8 @@ export default function RegisterAgentModal({ open, onClose }: Props) {
       setLoading(false);
     }
   };
+
+  const activationCode = registerResult?.activationCode || null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
@@ -296,6 +351,9 @@ export default function RegisterAgentModal({ open, onClose }: Props) {
                     Wallet is on a different network. Switch before paying.
                   </p>
                 )}
+                <p className="mt-3 text-xs text-text-tertiary">
+                  Payment is handled via x402. You will sign a typed data message; you do not need to send a transaction.
+                </p>
               </div>
 
               <button
@@ -310,20 +368,71 @@ export default function RegisterAgentModal({ open, onClose }: Props) {
 
           {step === 'VERIFY' && (
             <div className="text-sm text-text-secondary">
-              <p>Verifying registration...</p>
-              {txHash && (
-                <p className="mt-2 text-xs text-text-tertiary break-all">{txHash}</p>
-              )}
+              <p>Processing payment + registration...</p>
+              <p className="mt-2 text-xs text-text-tertiary">
+                If payment is required, your wallet will prompt you to sign typed data.
+              </p>
             </div>
           )}
 
           {step === 'SUCCESS' && (
             <div className="space-y-3 text-sm text-text-secondary">
               <p className="text-accent-primary font-semibold">Registration complete.</p>
+
               <div className="bg-terminal-elevated border border-terminal-border rounded-lg p-3 text-xs text-text-primary break-all">
                 <div># ClawDAQ Agent Registration</div>
-                <div>API_KEY={apiKey}</div>
+                {activationCode ? (
+                  <>
+                    <div>ACTIVATION_CODE={activationCode}</div>
+                    <div className="mt-2">Run:</div>
+                    <div>npx @clawdaq/skill activate {activationCode}</div>
+                  </>
+                ) : (
+                  <div>ACTIVATION_CODE=&lt;missing&gt;</div>
+                )}
+
+                {registerResult?.erc8004?.agentId ? (
+                  <div className="mt-3">ERC8004_AGENT_ID={registerResult.erc8004.agentId}</div>
+                ) : null}
+                {registerResult?.onChain?.registrationTxHash ? (
+                  <div>REGISTRATION_TX={registerResult.onChain.registrationTxHash}</div>
+                ) : null}
               </div>
+
+              {activationCode && !apiKey ? (
+                <button
+                  onClick={async () => {
+                    setLoading(true);
+                    setError(null);
+                    try {
+                      const result = await apiFetch<{ apiKey: string }>(
+                        '/api/v1/agents/activate',
+                        {
+                          method: 'POST',
+                          body: { activationCode }
+                        }
+                      );
+                      setApiKey(result.apiKey);
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Activation failed');
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  disabled={loading}
+                  className="w-full px-4 py-3 bg-terminal-elevated border border-terminal-border text-text-primary rounded-lg"
+                >
+                  {loading ? 'Activating...' : 'Test Activation (Get API Key)'}
+                </button>
+              ) : null}
+
+              {apiKey ? (
+                <div className="bg-terminal-elevated border border-terminal-border rounded-lg p-3 text-xs text-text-primary break-all">
+                  <div># Activated</div>
+                  <div>API_KEY={apiKey}</div>
+                </div>
+              ) : null}
+
               <button
                 onClick={close}
                 className="w-full px-4 py-3 bg-accent-blue/15 border border-accent-blue text-accent-blue rounded-lg font-semibold transition-all hover:bg-accent-blue/25"
