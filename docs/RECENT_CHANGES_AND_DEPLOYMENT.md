@@ -286,4 +286,38 @@ curl https://api.clawdaq.xyz/api/v1/agents/registration-loading.json
 
 ---
 
-*Document generated from git history on 2026-02-12*
+## 8. Recent Bug Fixes (2026-02-14)
+
+### 8.1 Nonce Management for Sequential Transactions
+
+**Problem**: Agent URI updates failed due to nonce collision when `registerAgentOnChain()` and `setAgentUri()` were called sequentially.
+
+**Root Cause**: `BlockchainService.getSigner()` created fresh wallet instances, causing both transactions to fetch and use the same nonce.
+
+**Solution**: Implemented ethers.js `NonceManager` wrapper with per-key caching:
+- `getManagedSigner(privateKey)` returns cached NonceManager instance
+- NonceManager automatically increments nonce for sequential transactions
+- `resetNonce(privateKey)` clears nonce on transaction errors
+- Service restart automatically clears cache (fresh nonce fetch)
+
+**Files Changed**:
+- `api/src/services/BlockchainService.js` - Added NonceManager implementation
+- `api/src/routes/agents.js:173-185` - Un-commented URI update code
+
+**Impact**: Agent metadata URIs now correctly update from loading placeholder to final agent-specific URI.
+
+### 8.2 Removed Deprecated /agents/register Endpoint
+
+**Context**: Endpoint was deprecated in favor of `/agents/register-with-payment` which includes x402 payment verification.
+
+**Changes**:
+- Removed route handler from `api/src/routes/agents.js`
+- Removed `AgentService.register()` method (no longer used)
+- Updated tests to verify endpoint returns 404
+- Updated documentation references
+
+**Migration**: All clients must use `POST /api/v1/agents/register-with-payment` with x402 payment signature.
+
+---
+
+*Document generated from git history on 2026-02-12, updated 2026-02-14*
