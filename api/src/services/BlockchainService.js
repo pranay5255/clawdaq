@@ -55,6 +55,7 @@ class BlockchainService {
     this.registryContract = null;
     this.usdcContract = null;
     this.isInitialized = false;
+    this.managedSigners = new Map();
   }
 
   /**
@@ -89,6 +90,34 @@ class BlockchainService {
   getSigner(privateKey) {
     if (!this.isInitialized) this.initialize();
     return new ethers.Wallet(privateKey, this.provider);
+  }
+
+  /**
+   * Get a signer wrapped in an ethers NonceManager.
+   * This prevents nonce collisions when sending sequential transactions
+   * (e.g. registerAgent() then setAgentUri()).
+   */
+  getManagedSigner(privateKey) {
+    if (!this.isInitialized) this.initialize();
+
+    const key = String(privateKey || '').trim();
+    if (!key) {
+      throw new Error('privateKey is required');
+    }
+
+    const cached = this.managedSigners.get(key);
+    if (cached) return cached;
+
+    const wallet = new ethers.Wallet(key, this.provider);
+    const managed = new ethers.NonceManager(wallet);
+    this.managedSigners.set(key, managed);
+    return managed;
+  }
+
+  resetNonce(privateKey) {
+    const key = String(privateKey || '').trim();
+    if (!key) return;
+    this.managedSigners.delete(key);
   }
 
   normalizeAgentId(agentId) {
@@ -293,7 +322,7 @@ class BlockchainService {
       throw new Error('payerEoa is required');
     }
 
-    const signer = this.getSigner(ownerPrivateKey);
+    const signer = this.getManagedSigner(ownerPrivateKey);
     const registryWithSigner = this.registryContract.connect(signer);
 
     try {
@@ -339,6 +368,10 @@ class BlockchainService {
 
     } catch (error) {
       console.error('[BlockchainService] Registration error:', error);
+
+      // If the tx send failed due to a nonce issue, drop cached nonce state.
+      // Next attempt will fetch a fresh nonce from the provider.
+      this.resetNonce(ownerPrivateKey);
       
       return {
         success: false,
@@ -355,7 +388,7 @@ class BlockchainService {
   async updateAgentActivity(agentId, activity, ownerPrivateKey) {
     if (!this.isInitialized) this.initialize();
     
-    const signer = this.getSigner(ownerPrivateKey);
+    const signer = this.getManagedSigner(ownerPrivateKey);
     const registryWithSigner = this.registryContract.connect(signer);
 
     try {
@@ -377,6 +410,7 @@ class BlockchainService {
       };
     } catch (error) {
       console.error('[BlockchainService] Activity update error:', error);
+      this.resetNonce(ownerPrivateKey);
       return {
         success: false,
         error: error.message
@@ -393,7 +427,7 @@ class BlockchainService {
       throw new Error('Blockchain service not initialized');
     }
 
-    const signer = this.getSigner(ownerPrivateKey);
+    const signer = this.getManagedSigner(ownerPrivateKey);
     const registryWithSigner = this.registryContract.connect(signer);
 
     try {
@@ -407,6 +441,7 @@ class BlockchainService {
       };
     } catch (error) {
       console.error('[BlockchainService] setAgentUri error:', error);
+      this.resetNonce(ownerPrivateKey);
       return {
         success: false,
         error: error.message
