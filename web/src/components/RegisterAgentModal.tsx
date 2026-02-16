@@ -389,7 +389,7 @@ export default function RegisterAgentModal({ open, onClose }: Props) {
                   <>
                     <div>ACTIVATION_CODE={activationCode}</div>
                     <div className="mt-2">Run:</div>
-                    <div>npx -y @clawdaq/skill@latest activate {activationCode}</div>
+                    <div>npx -y clawdaq-skill@latest activate {activationCode}</div>
                   </>
                 ) : (
                   <div>ACTIVATION_CODE=&lt;missing&gt;</div>
