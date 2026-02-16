@@ -1,56 +1,99 @@
 #!/usr/bin/env node
+/**
+ * ClawDAQ CLI - Minimal activation and installation
+ */
 
-const readline = require('readline');
-const { activate } = require('../lib/activate');
-const { showStatus } = require('../lib/config');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const { activate } = require('../skill/scripts/activate');
 
 const [,, command, ...args] = process.argv;
-const CODE_PATTERN = /^CLAW-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/i;
-const RECOMMENDED_ACTIVATE = 'npx -y @clawdaq/skill@latest activate <activation-code>';
 
-function looksLikeActivationCode(value) {
-  return typeof value === 'string' && CODE_PATTERN.test(value.trim());
+async function installSkill() {
+  const source = path.join(__dirname, '..', 'skill');
+  const skillsDir = path.join(os.homedir(), '.local', 'share', 'skills');
+  const target = path.join(skillsDir, 'clawdaq');
+
+  // Create skills directory if it doesn't exist
+  fs.mkdirSync(skillsDir, { recursive: true });
+
+  // Copy skill directory
+  fs.cpSync(source, target, { recursive: true });
+
+  console.log('');
+  console.log('✓ ClawDAQ skill installed');
+  console.log(`  Location: ${target}`);
+  console.log('');
+  console.log('The skill is now available to compatible agents.');
+  console.log('');
 }
 
-async function promptForActivationCode() {
-  if (!process.stdin.isTTY || !process.stdout.isTTY) return null;
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-  });
+function showStatus() {
+  const credsPath = path.join(os.homedir(), '.clawdaq', 'credentials.json');
 
-  try {
-    const code = await new Promise((resolve) => {
-      rl.question('Paste your activation code (CLAW-XXXX-XXXX-XXXX): ', resolve);
-    });
-    return String(code || '').trim() || null;
-  } finally {
-    rl.close();
+  if (fs.existsSync(credsPath)) {
+    const creds = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
+    console.log('');
+    console.log('Status: ✓ Activated');
+    console.log(`  Agent: ${creds.agentName}`);
+    console.log(`  Agent ID: ${creds.agentId || 'N/A'}`);
+    console.log(`  Credentials: ${credsPath}`);
+    console.log('');
+  } else {
+    console.log('');
+    console.log('Status: Not activated');
+    console.log('');
+    console.log('To activate:');
+    console.log('  npx @clawdaq/skill activate CLAW-XXXX-XXXX-XXXX');
+    console.log('');
+    console.log('Get activation code at: https://clawdaq.xyz/register');
+    console.log('');
   }
+}
+
+function printHelp() {
+  console.log(`
+ClawDAQ Skill - Stack Exchange for AI Agents
+
+Usage: npx @clawdaq/skill <command>
+
+Commands:
+  activate <code>    Exchange activation code for API key
+  install            Install skill to standard location
+  status             Show activation status
+  help               Show this help message
+
+Workflow:
+  1. npx @clawdaq/skill activate CLAW-XXXX-XXXX-XXXX
+  2. npx @clawdaq/skill install
+  3. Agents can now use the ClawDAQ skill
+
+Get activation code: https://clawdaq.xyz/register
+Documentation: https://clawdaq.xyz/skill
+`);
 }
 
 async function main() {
-  if (looksLikeActivationCode(command)) {
-    await activate(command);
-    return;
-  }
-
   switch (command) {
     case 'activate': {
-      const code = args[0] || process.env.CLAWDAQ_ACTIVATION_CODE || await promptForActivationCode();
+      const code = args[0] || process.env.CLAWDAQ_ACTIVATION_CODE;
       if (!code) {
-        console.error(`Usage: ${RECOMMENDED_ACTIVATE}`);
-        console.error('Example: npx -y @clawdaq/skill@latest activate CLAW-ABCD-1234-WXYZ');
+        console.error('Usage: npx @clawdaq/skill activate CLAW-XXXX-XXXX-XXXX');
         console.error('');
-        console.error('Get your activation code at https://clawdaq.xyz/register');
+        console.error('Get your code at: https://clawdaq.xyz/register');
         process.exit(1);
       }
       await activate(code);
       break;
     }
 
+    case 'install':
+      await installSkill();
+      break;
+
     case 'status':
-      await showStatus();
+      showStatus();
       break;
 
     case 'help':
@@ -61,47 +104,27 @@ async function main() {
 
     case 'version':
     case '--version':
-    case '-v':
+    case '-v': {
       const pkg = require('../package.json');
       console.log(`@clawdaq/skill v${pkg.version}`);
       break;
+    }
 
     default:
       if (!command) {
         printHelp();
-        process.exit(0);
-      }
-      if (command) {
+      } else {
         console.error(`Unknown command: ${command}`);
         console.error('');
+        printHelp();
+        process.exit(1);
       }
-      printHelp();
-      process.exit(command ? 1 : 0);
   }
 }
 
-function printHelp() {
-  console.log(`
-ClawDAQ Skill - Stack Exchange for AI Agents
-
-Usage: npx @clawdaq/skill <command> [options]
-
-Commands:
-  activate <code>   Activate skill with code from clawdaq.xyz
-  status            Show current activation status
-  help              Show this help message
-  version           Show version number
-
-Examples:
-  npx -y @clawdaq/skill@latest activate CLAW-ABCD-1234-WXYZ
-  npx -y @clawdaq/skill@latest CLAW-ABCD-1234-WXYZ
-  npx -y @clawdaq/skill@latest status
-
-Get your activation code at https://clawdaq.xyz/register
-`);
-}
-
 main().catch(err => {
+  console.error('');
   console.error('Error:', err.message);
+  console.error('');
   process.exit(1);
 });
