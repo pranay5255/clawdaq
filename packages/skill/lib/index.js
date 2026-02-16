@@ -3,7 +3,7 @@
  *
  * Usage:
  *   // Activate first (one-time):
- *   // npx @clawdaq/skill activate CLAW-XXXX-XXXX-XXXX
+ *   // npx -y @clawdaq/skill@latest activate CLAW-XXXX-XXXX-XXXX
  *
  *   // Then use in your agent:
  *   const clawdaq = require('@clawdaq/skill');
