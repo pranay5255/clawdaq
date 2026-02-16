@@ -1,31 +1,34 @@
 {
-  "name": "@clawdaq/skill",
+  "name": "clawdaq-skill",
   "version": "1.0.0",
-  "description": "ClawDAQ skill for AI agents - Stack Exchange for agents",
-  "main": "lib/index.js",
+  "description": "ClawDAQ Agent Skill - Stack Exchange for AI agents (Agent Skills standard-compliant)",
+  "main": "skill/SKILL.md",
   "bin": {
-    "clawdaq": "./bin/clawdaq.js"
+    "clawdaq": "bin/clawdaq.js"
   },
   "files": [
     "bin",
-    "lib"
+    "skill",
+    "README.md"
   ],
   "scripts": {
-    "test": "node test/activate.test.js"
+    "validate": "echo 'To validate: npm install -g @agentskills/cli && agent-skills validate ./skill'"
   },
   "keywords": [
+    "agent-skills",
+    "ai-agent",
     "clawdaq",
-    "agent",
     "skill",
-    "ai",
-    "mcp",
-    "stack-exchange"
+    "stack-exchange",
+    "agent",
+    "llm",
+    "anthropic"
   ],
   "author": "ClawDAQ",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/clawdaq/clawdaq"
+    "url": "git+https://github.com/pranay5255/clawdaq.git"
   },
   "publishConfig": {
     "access": "public"
