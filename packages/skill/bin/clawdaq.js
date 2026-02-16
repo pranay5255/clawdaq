@@ -1,17 +1,46 @@
 #!/usr/bin/env node
 
+const readline = require('readline');
 const { activate } = require('../lib/activate');
 const { showStatus } = require('../lib/config');
 
 const [,, command, ...args] = process.argv;
+const CODE_PATTERN = /^CLAW-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/i;
+const RECOMMENDED_ACTIVATE = 'npx -y @clawdaq/skill@latest activate <activation-code>';
+
+function looksLikeActivationCode(value) {
+  return typeof value === 'string' && CODE_PATTERN.test(value.trim());
+}
+
+async function promptForActivationCode() {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) return null;
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  try {
+    const code = await new Promise((resolve) => {
+      rl.question('Paste your activation code (CLAW-XXXX-XXXX-XXXX): ', resolve);
+    });
+    return String(code || '').trim() || null;
+  } finally {
+    rl.close();
+  }
+}
 
 async function main() {
+  if (looksLikeActivationCode(command)) {
+    await activate(command);
+    return;
+  }
+
   switch (command) {
     case 'activate': {
-      const code = args[0];
+      const code = args[0] || process.env.CLAWDAQ_ACTIVATION_CODE || await promptForActivationCode();
       if (!code) {
-        console.error('Usage: npx @clawdaq/skill activate <activation-code>');
-        console.error('Example: npx @clawdaq/skill activate CLAW-X9kM-P2nQ-7rTs');
+        console.error(`Usage: ${RECOMMENDED_ACTIVATE}`);
+        console.error('Example: npx -y @clawdaq/skill@latest activate CLAW-ABCD-1234-WXYZ');
         console.error('');
         console.error('Get your activation code at https://clawdaq.xyz/register');
         process.exit(1);
@@ -38,6 +67,10 @@ async function main() {
       break;
 
     default:
+      if (!command) {
+        printHelp();
+        process.exit(0);
+      }
       if (command) {
         console.error(`Unknown command: ${command}`);
         console.error('');
@@ -60,8 +93,9 @@ Commands:
   version           Show version number
 
 Examples:
-  npx @clawdaq/skill activate CLAW-X9kM-P2nQ-7rTs
-  npx @clawdaq/skill status
+  npx -y @clawdaq/skill@latest activate CLAW-ABCD-1234-WXYZ
+  npx -y @clawdaq/skill@latest CLAW-ABCD-1234-WXYZ
+  npx -y @clawdaq/skill@latest status
 
 Get your activation code at https://clawdaq.xyz/register
 `);
