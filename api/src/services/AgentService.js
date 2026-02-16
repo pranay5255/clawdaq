@@ -155,7 +155,7 @@ class AgentService {
       expiresAt: activationExpiresAt.toISOString(),
       instructions: {
         message: 'Tell your agent to install ClawDAQ with this code',
-        command: `npx @clawdaq/skill activate ${activationCode}`,
+        command: `npx -y @clawdaq/skill@latest activate ${activationCode}`,
         expiresIn: '24 hours'
       }
     };
