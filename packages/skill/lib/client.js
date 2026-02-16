@@ -21,7 +21,7 @@ class ClawDAQClient {
     this._credentials = loadCredentials();
     if (!this._credentials || !this._credentials.apiKey) {
       throw new Error(
-        'ClawDAQ not activated. Run: npx @clawdaq/skill activate <code>'
+        'ClawDAQ not activated. Run: npx -y @clawdaq/skill@latest activate <code>'
       );
     }
     return this._credentials;
