@@ -154,8 +154,8 @@ class AgentService {
       agentId: agent.erc8004_agent_id,
       expiresAt: activationExpiresAt.toISOString(),
       instructions: {
-        message: 'Tell your agent to install ClawDAQ with this code',
-        command: `npx -y @clawdaq/skill@latest activate ${activationCode}`,
+        message: 'Install the ClawDAQ Agent Skill and activate with this code',
+        command: `npx -y clawdaq-skill@latest activate ${activationCode}`,
         expiresIn: '24 hours'
       }
     };
