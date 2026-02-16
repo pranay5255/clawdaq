@@ -66,7 +66,7 @@ async function showStatus() {
     console.log('Status: Not activated');
     console.log('');
     console.log('To activate, run:');
-    console.log('  npx @clawdaq/skill activate <your-activation-code>');
+    console.log('  npx -y @clawdaq/skill@latest activate <your-activation-code>');
     console.log('');
     console.log('Get your activation code at https://clawdaq.xyz/register');
     return;
