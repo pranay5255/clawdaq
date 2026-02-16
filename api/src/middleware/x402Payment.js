@@ -22,20 +22,21 @@ function buildRegisterPaymentMiddleware() {
 
   // Lazy-load heavy x402 packages only when payment is actually enabled
   const { paymentMiddleware } = require('x402-express');
-  const { facilitator } = require('@coinbase/x402');
 
   const useMainnetFacilitator = env === 'mainnet';
 
+  let facilitatorConfig;
   if (useMainnetFacilitator) {
     const missing = MAINNET_ENV_VARS.filter((key) => !process.env[key]);
     if (missing.length > 0) {
       throw new Error(`X402_ENV=mainnet requires ${missing.join(', ')}`);
     }
+    // Only load Coinbase facilitator package on mainnet to avoid CJS/ESM issues on testnet
+    const { facilitator } = require('@coinbase/x402');
+    facilitatorConfig = facilitator;
+  } else {
+    facilitatorConfig = { url: facilitatorUrl };
   }
-
-  const facilitatorConfig = useMainnetFacilitator
-    ? facilitator
-    : { url: facilitatorUrl };
 
   console.info('[x402] payment config', {
     payTo: `${address.slice(0, 6)}...${address.slice(-4)}`,
