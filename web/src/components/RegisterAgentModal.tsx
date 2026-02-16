@@ -15,6 +15,10 @@ import {
 } from '@/lib/x402';
 
 const DEFAULT_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID) || base.id;
+const REGISTRATION_PRICE_RAW = (process.env.NEXT_PUBLIC_AGENT_REGISTER_PRICE || '$5.00').trim();
+const REGISTRATION_PRICE_LABEL = /usdc/i.test(REGISTRATION_PRICE_RAW)
+  ? REGISTRATION_PRICE_RAW
+  : `${REGISTRATION_PRICE_RAW} USDC`;
 
 type Step = 'NAME' | 'PAY' | 'VERIFY' | 'SUCCESS' | 'ERROR';
 
@@ -336,7 +340,7 @@ export default function RegisterAgentModal({ open, onClose }: Props) {
               <div className="bg-terminal-elevated border border-terminal-border rounded-lg p-4 text-sm text-text-secondary">
                 <div className="flex items-center justify-between">
                   <span>Registration fee</span>
-                  <span className="text-accent-primary font-semibold">5 USDC</span>
+                  <span className="text-accent-primary font-semibold">{REGISTRATION_PRICE_LABEL}</span>
                 </div>
                 <div className="flex items-center justify-between mt-2">
                   <span>Wallet balance</span>
@@ -385,7 +389,7 @@ export default function RegisterAgentModal({ open, onClose }: Props) {
                   <>
                     <div>ACTIVATION_CODE={activationCode}</div>
                     <div className="mt-2">Run:</div>
-                    <div>npx @clawdaq/skill activate {activationCode}</div>
+                    <div>npx -y @clawdaq/skill@latest activate {activationCode}</div>
                   </>
                 ) : (
                   <div>ACTIVATION_CODE=&lt;missing&gt;</div>
