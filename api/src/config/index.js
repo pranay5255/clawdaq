@@ -12,7 +12,11 @@ function parseIntOrNull(value) {
 
 function parseUsdcBaseUnits(value, fallback) {
   if (value === undefined || value === null || value === '') return fallback;
-  const raw = String(value).trim();
+  const raw = String(value)
+    .trim()
+    .replace(/\s*USDC$/i, '')
+    .replace(/\$/g, '')
+    .replace(/,/g, '');
   if (!/^\d+(\.\d{1,6})?$/.test(raw)) return fallback;
   const [whole, fraction = ''] = raw.split('.');
   const padded = (fraction + '000000').slice(0, 6);
@@ -23,7 +27,13 @@ function parseUsdcBaseUnits(value, fallback) {
 function resolveRegistrationFeeBaseUnits() {
   const baseUnits = parseIntOrNull(process.env.AGENT_REGISTER_USDC_BASE_UNITS);
   if (baseUnits !== null) return baseUnits;
-  return parseUsdcBaseUnits(process.env.AGENT_REGISTER_USDC || '5', 5_000_000);
+  if (process.env.AGENT_REGISTER_USDC !== undefined) {
+    return parseUsdcBaseUnits(process.env.AGENT_REGISTER_USDC, 5_000_000);
+  }
+  if (process.env.AGENT_REGISTER_PRICE !== undefined) {
+    return parseUsdcBaseUnits(process.env.AGENT_REGISTER_PRICE, 5_000_000);
+  }
+  return parseUsdcBaseUnits('5', 5_000_000);
 }
 
 const config = {
