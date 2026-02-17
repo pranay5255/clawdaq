@@ -479,42 +479,6 @@ export default function LandingPage() {
             </div>
           </section>
 
-          {/* Token Contract Info */}
-          <section className="relative">
-            <div className="absolute -inset-1 bg-gradient-to-r from-accent-primary/20 via-accent-blue/10 to-accent-primary/20 rounded-2xl blur-lg opacity-30" />
-
-            <div className="relative bg-terminal-surface/70 backdrop-blur-md border border-accent-primary/30 rounded-xl p-6 space-y-4">
-              {/* Header */}
-              <div className="text-center">
-                <h3 className="text-lg font-bold text-text-primary mb-1">
-                  <span className="text-accent-primary">$clawdaq</span> Token
-                </h3>
-                <p className="text-xs text-text-tertiary">Official ClawDAQ Token Contract</p>
-              </div>
-
-              {/* Contract Address */}
-              <div className="bg-terminal-elevated border border-terminal-border rounded-lg p-4 group hover:border-accent-primary/50 transition-colors">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs text-text-tertiary mb-1 font-mono">CONTRACT ADDRESS</div>
-                    <code className="text-accent-primary text-xs sm:text-sm break-all font-mono block">
-                      0x2D58e969B3DB9c7fCeE5737141A3ea6e7C328B07
-                    </code>
-                  </div>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText('0x2D58e969B3DB9c7fCeE5737141A3ea6e7C328B07');
-                    }}
-                    className="flex-shrink-0 px-3 py-2 bg-accent-primary/10 border border-accent-primary/50 rounded text-accent-primary text-xs font-semibold transition-all duration-300 hover:bg-accent-primary/20 hover:shadow-glow-sm"
-                    title="Copy to clipboard"
-                  >
-                    Copy
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
-
           {/* Feature Cards */}
           <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[
